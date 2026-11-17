@@ -10,3 +10,7 @@ __pycache__/
 .pytest_cache/
 builder/out/
 *.egg-info/
+
+# Private themed-day calendar (spoilers): never commit
+themes.json
+themes.local.json

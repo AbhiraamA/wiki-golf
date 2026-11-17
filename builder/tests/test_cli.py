@@ -7,11 +7,10 @@ from wikigolf_builder.cli import main
 from wikigolf_builder.fnv import title_shard
 
 PICK = [
-    "target_min_in=1",
-    "target_max_in=100",
-    "start_min_in=1",
+    "target_top_fraction=1.0",
+    "start_top_fraction_short=1.0",
+    "start_top_fraction_long=1.0",
     "min_page_len=100",
-    "hub_count=3",
     "candidates_per_day=20",
     "starts_per_target=20",
 ]
@@ -85,3 +84,25 @@ def test_existing_dates_are_skipped(tmp_path):
         ("2026-12-07", "approved"),
         ("2026-12-08", "queued"),
     ]
+
+
+def test_build_applies_themed_day(tmp_path):
+    themes = tmp_path / "themes.json"
+    themes.write_text(
+        json.dumps(
+            {
+                "themes": [
+                    {
+                        "id": "demo",
+                        "when": {"type": "fixed", "month": 12, "day": 7},
+                        "targets": ["Apollo 11"],
+                        "badge": {"label": "Demo Day", "emoji": "🚀"},
+                    }
+                ]
+            }
+        )
+    )
+    assert run(tmp_path, "--days", "1", "--themes", str(themes)) == 0
+    hole = json.loads((tmp_path / "simplewiki" / "holes" / "2026-12-07.json").read_text())
+    assert hole["badge"] == {"label": "Demo Day", "emoji": "🚀"}
+    assert hole["target"]["title"] == "Apollo_11"

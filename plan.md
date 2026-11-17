@@ -108,6 +108,7 @@ wiki-golf/
 | `{wiki}/holes/index.json` | `{ holes: [{ date, holeNo, status, snap, par, start, target }] }` sorted by date, per wiki. `start`/`target` are titles, kept for the builder's no-repeat rules; the Worker must never serve this file as-is. |
 | `{wiki}/distances/{YYYY-MM-DD}.bin` | `Uint8Array` of length `articleCount`: clicks from each page index to the target. 255 = no route. Namespaced by wiki. |
 | `html/{wiki}/{revId}.html` | Cached Parsoid HTML for one pinned revision. Written by the Worker on first request. |
+| `themes.json` | Private themed-day calendar (holiday/anniversary → pinned target + badge). Not in the repo, so upcoming themed targets aren't spoiled. Read by the builder only. |
 
 The builder must use the same FNV-1a function as `worker/src/lib/titles.ts`. Add a shared test vector file both sides test against.
 
@@ -193,16 +194,18 @@ Command: `python -m wikigolf_builder build --wiki simplewiki --days 30 --start 2
 
 For each date:
 1. Draw par from the schedule with `random.Random(date)`. Target shortest distance `d = par − 1`.
-2. Candidate targets: articles with 20 to 2,000 incoming links, not excluded (5.4). Fewer incoming links makes long holes possible.
+2. **Fame filter.** Candidate targets are the top `target_top_fraction` of articles by incoming links (default top 3%), not excluded (5.4) — both endpoints should be recognisable. Thresholds are percentiles of the in-degree distribution, so they adapt to each wiki; they are config values in `PickSettings`.
 3. One reverse breadth-first search per candidate gives every article's distance to it (`uint8`, 255 = none).
-4. Pick a start exactly `d` clicks away with at least 200 incoming links (a well-known page) and not excluded.
-5. Score difficulty: fewer distinct shortest routes, fewer target backlinks and less reliance on the 1,000 most-linked articles make it harder. Keep the pair closest to the day's target difficulty.
+4. Pick a well-known start exactly `d` clicks away, above `min_page_len` (not a stub), not excluded, fresh, and not forming a reused pair. The start fame bar is **tiered by hole length**: short holes (`d < long_distance`, par 3–5) use the top `start_top_fraction_short` (default 8%); long holes (par 6–7) use the looser top `start_top_fraction_long` (default 20%), since few famous articles sit that far from a famous target.
+5. **Difficulty comes from distance, not obscurity:** `difficulty = d / 6` in [0,1]. The picker does not optimise for obscurity; among valid famous/well-known pairs it chooses at random (date-seeded).
 6. Verify: fetch the Parsoid HTML for each page on one shortest route (Wikimedia REST, `GET https://{lang}.wikipedia.org/w/rest.php/v1/revision/{revId}/html`) and confirm each next link appears as `href="./{Title}"`. If not, drop that edge and search again.
-7. No start or target repeats within 365 days. Never reuse a pair.
+7. No start or target repeats within 365 days. Never reuse a pair. (Themed targets are exempt — they recur yearly.)
+
+**Themed days.** The builder reads a private calendar from R2 `themes.json` (never committed; a starter lives in the gitignored `builder/themes.local.json`). A theme matches a fixed date, the nth weekday of a month (n = −1 for last), or Easter (± an offset), and pins one target or a small pool, plus an optional `{label, emoji}` badge. On a themed date the pinned target **skips the fame filter** (the owner chose it); the builder finds a well-known start at the day's distance, widening the par by up to `theme_par_widen` (default 1) if none fits (logged, title-free). The badge is written into the hole file and shown on the tee screen.
 
 ### 5.4 Exclusions (start and target only)
 
-Disambiguation pages, list pages (`List of …`), years and dates (`1999`, `March 3`), very short articles, and titles in `builder/blocklist.txt` (sensitive topics; reviewed by the owner). Excluded pages can still appear mid-route.
+Disambiguation pages, list pages (`List of …`), years and dates (`1999`, `March 3`), music works by their disambiguator (`(album)`, `(song)`, `(single)`, `(EP)`, `(soundtrack)`, `… discography`), very short articles, and titles in `builder/blocklist.txt` (sensitive topics; reviewed by the owner). The fame filter catches most other albums/songs (low inlinks). Excluded pages can still appear mid-route, and a themed target bypasses these rules.
 
 ### 5.5 Export and upload
 

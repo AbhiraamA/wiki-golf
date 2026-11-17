@@ -8,8 +8,14 @@ from pathlib import Path
 import numpy as np
 
 _MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
+# Parenthetical disambiguators for music works, e.g. "Thriller_(album)", "Hello_(2015_song)".
+_MUSIC = "album|song|single|EP|soundtrack|mixtape|opera|musical"
 _PATTERNS = [
     re.compile(r"^Lists?_of_", re.I),
+    # Navigational/index pages: "Index of…", "Glossary of…", "Outline of…", "Timeline of…".
+    re.compile(r"^(Index|Glossary|Outline|Timeline|Comparison|Table)_of_", re.I),
+    re.compile(r"_[–—-]_[A-Z0-9]$"),  # by-letter index: "UK_railway_stations_–_U"
+    re.compile(r"_discography$", re.I),  # "Beatles_discography"
     re.compile(r"^\d{1,4}(_(BC|BCE|AD|CE))?$"),  # years: 1999, 44_BC
     re.compile(r"^(AD_)\d{1,4}$"),
     re.compile(r"^\d{1,4}0s(_(BC|BCE))?$"),  # decades: 1990s
@@ -17,6 +23,8 @@ _PATTERNS = [
     re.compile(rf"^({_MONTHS})(_\d{{1,2}})?(,?_\d{{1,4}})?$"),  # March, March_3, March_1999
     re.compile(rf"^\d{{1,2}}_({_MONTHS})$"),  # 3_March
     re.compile(r"_\(disambiguation\)$", re.I),
+    # Music works by their disambiguator: "(album)", "(1999 song)", "(Beatles album)", "(EP)".
+    re.compile(rf"_\([^)]*\b({_MUSIC})\)$", re.I),
 ]
 
 

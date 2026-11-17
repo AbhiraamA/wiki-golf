@@ -30,31 +30,32 @@ PAR_RANGES: dict[int, tuple[int, int]] = {
     6: (6, 7),
 }
 
-# Target difficulty score (0 easy .. 1 hard) by weekday; the picker keeps the closest pair.
-TARGET_DIFFICULTY: dict[int, float] = {
-    0: 0.35,
-    1: 0.35,
-    2: 0.45,
-    3: 0.45,
-    4: 0.55,
-    5: 0.55,
-    6: 0.65,
-}
+# Longest shortest-distance a hole can have (Sunday par 7 → 6 clicks). Used to scale difficulty.
+MAX_DISTANCE = 6
 
 
 @dataclass(frozen=True)
 class PickSettings:
-    """Thresholds for choosing holes. Defaults follow plan.md section 5.3."""
+    """Thresholds for choosing holes.
 
-    target_min_in: int = 20
-    target_max_in: int = 2000
-    start_min_in: int = 200
-    min_page_len: int = 2000
-    hub_count: int = 1000
-    candidates_per_day: int = 40
+    Fame is a percentile of incoming-link count, so both endpoints are recognisable: targets sit
+    in the top `target_top_fraction` of articles by inlinks. Starts are tiered by hole length,
+    because few famous articles sit far from a famous target: short holes (distance <
+    `long_distance`) demand a well-known start (top `start_top_fraction_short`), while long holes
+    keep a looser bar (top `start_top_fraction_long`) so they can still be built. Difficulty comes
+    from distance (plan.md section 1), not from obscurity.
+    """
+
+    target_top_fraction: float = 0.03  # targets: top 3% of articles by incoming links
+    start_top_fraction_short: float = 0.08  # starts for short holes (distance < long_distance)
+    start_top_fraction_long: float = 0.20  # starts for long holes (distance >= long_distance)
+    long_distance: int = 5  # a hole is "long" at this shortest distance or more (par 6+)
+    min_page_len: int = 2000  # below this a page counts as a stub (start/target excluded)
+    candidates_per_day: int = 60
     starts_per_target: int = 12
     repeat_window_days: int = 365
     max_verify_attempts: int = 12
+    theme_par_widen: int = 1  # on a themed day, par may shift by up to this to fit a start
 
 
 @dataclass(frozen=True)

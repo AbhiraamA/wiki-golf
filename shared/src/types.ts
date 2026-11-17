@@ -10,6 +10,12 @@ export interface PageRef {
   revId: number;
 }
 
+/** Shown on the tee screen for a themed day (holiday, anniversary). */
+export interface Badge {
+  label: string;
+  emoji: string;
+}
+
 /** Public hole info returned by `GET /api/hole`. Never includes distances. */
 export interface HoleInfo {
   holeNo: number;
@@ -19,4 +25,6 @@ export interface HoleInfo {
   pickUp: number;
   start: PageRef;
   target: PageRef;
+  /** Present only on themed days. */
+  badge?: Badge;
 }
