@@ -45,7 +45,7 @@ The owner approved these deviations on 2026-11-17.
 - [x] `approve` command: `python -m wikigolf_builder approve --dates 2026-12-01 …` or `--through 2026-12-14` (add `--dry-run` to preview); needs the R2 env vars
 - [x] Public build logs and job summary carry no start, target or route (owner decision, 2026-11-17); endpoints are reviewed privately with `show`
 - [x] Starter `builder/blocklist.txt` drafted for owner review (violent events/atrocities, sexual content, suicide/self-harm, deaths/disasters, slurs, extremist groups, divisive political figures)
-- [ ] Manual run with `wiki=simplewiki, days=30` uploads 30 holes, shards and distance files to R2 (job summary shows date/hole/par/route-check only)
+- [x] Manual run (`wiki=simplewiki, days=30, start=2026-11-18, upload`) succeeded: run [44175160227](https://github.com/AbhiraamA/wiki-golf/actions/runs/44175160227). Snapshot `simplewiki-20261101` (286,136 articles, 13.0M links); 30/30 holes built and route-verified; 413 R2 objects written (352 snapshot files + 30×2 hole/distance + index). Peak memory 1.2 GB, run 5m23s. 1 link dropped at the HTML check and the route re-found. Job summary showed date/hole/par/route-check only — no titles or routes. Holes are `queued`, pending `show` review and `approve`.
 
 ### Notes and decisions
 
