@@ -1,0 +1,1 @@
+"""Wiki Golf hole builder."""

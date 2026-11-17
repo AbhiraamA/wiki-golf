@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wikigolf-builder"
+version = "0.0.0"
+description = "Builds Wiki Golf holes from Wikipedia dumps. Runs in GitHub Actions only."
+requires-python = ">=3.12"
+dependencies = [
+  "numpy>=2.1",
+  "requests>=2.32",
+  "boto3>=1.35",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "ruff>=0.8"]
+
+[tool.setuptools]
+packages = ["wikigolf_builder"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+# Line length is left to `ruff format`.
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["wikigolf_builder", "conftest"]
