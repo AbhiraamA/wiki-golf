@@ -33,6 +33,8 @@
   "vars": {
     "WIKI": "simplewiki",
     "ENVIRONMENT": "dev",
+    // Dev/test only. Production overrides this with `wrangler secret put COOKIE_SECRET`.
+    "COOKIE_SECRET": "dev-insecure-cookie-secret",
   },
 
   "observability": { "enabled": true },
