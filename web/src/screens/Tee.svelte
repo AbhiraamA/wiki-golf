@@ -1,21 +1,14 @@
 <script lang="ts">
-  import { isLongHole, weekday, type HoleInfo } from '@wiki-golf/shared';
   import HowToPlaySheet from '../components/HowToPlaySheet.svelte';
   import TeeArt from '../components/TeeArt.svelte';
+  import type { Game } from '../lib/game.svelte';
 
-  interface Props {
-    hole: HoleInfo;
-    streak: number;
-    onteeoff: () => void;
-  }
-
-  let { hole, streak, onteeoff }: Props = $props();
+  let { game }: { game: Game } = $props();
 
   let howOpen = $state(false);
 
-  const eyebrow = $derived(
-    `HOLE ${hole.holeNo} · ${weekday(hole.date).toUpperCase()}${isLongHole(hole.date) ? ' LONG HOLE' : ''}`,
-  );
+  const hole = $derived(game.hole);
+  const streak = $derived(game.me?.streakCurrent ?? 0);
   const streakText = $derived(
     streak > 0 ? `${streak}-day streak` : 'Finish today’s hole to start a streak',
   );
@@ -28,30 +21,59 @@
       class="icon-btn how-btn"
       type="button"
       aria-label="How to play"
-      onclick={() => (howOpen = true)}
+      onclick={() => (howOpen = true)}>?</button
     >
-      ?
-    </button>
   </div>
 
   <TeeArt />
 
-  <div class="tee-info">
-    <span class="eyebrow">{eyebrow}</span>
-    <h1 class="route-title" id="tee-title">
-      {hole.start.title}<br /><span class="to">to</span>
-      {hole.target.title}
-    </h1>
-    <div class="par-row">
-      <span class="par-chip">PAR {hole.par}</span>
-      <span class="muted">Pick up at {hole.pickUp} strokes</span>
+  {#if game.loading}
+    <p class="muted" style="margin-top:40px">Loading today’s hole…</p>
+  {:else if game.error}
+    <p class="played-note" style="margin-top:40px">{game.error}</p>
+    <div class="tee-actions">
+      <button class="btn-primary" type="button" onclick={() => game.init()}>TRY AGAIN</button>
     </div>
-  </div>
+  {:else if hole}
+    <div class="tee-info">
+      <span class="eyebrow">{game.eyebrow}</span>
+      <h1 class="route-title" id="tee-title">
+        {hole.start.title.replace(/_/g, ' ')}<br /><span class="to">to</span>
+        {hole.target.title.replace(/_/g, ' ')}
+      </h1>
+      <div class="par-row">
+        <span class="par-chip">PAR {hole.par}</span>
+        <span class="muted">Pick up at {hole.pickUp} strokes</span>
+      </div>
+      {#if game.alreadyPlayed}
+        <p class="played-note">
+          You finished today’s hole. Come back tomorrow for hole {hole.holeNo + 1}, or play a
+          practice round.
+        </p>
+      {/if}
+    </div>
 
-  <div class="tee-actions">
-    <button class="btn-primary" type="button" onclick={onteeoff}>TEE OFF</button>
-    <div class="tee-foot"><span>{streakText}</span></div>
-  </div>
+    <div class="tee-actions">
+      {#if game.alreadyPlayed}
+        <button class="btn-primary" type="button" onclick={() => game.seeResult()}>
+          SEE YOUR RESULT
+        </button>
+        <button class="btn-ghost" type="button" onclick={() => game.teeOff(true)}>
+          Play a practice round
+        </button>
+      {:else}
+        <button
+          class="btn-primary"
+          type="button"
+          disabled={game.busy}
+          onclick={() => game.teeOff(false)}
+        >
+          TEE OFF
+        </button>
+      {/if}
+      <div class="tee-foot"><span>{streakText}</span></div>
+    </div>
+  {/if}
 </section>
 
 {#if howOpen}
@@ -59,12 +81,6 @@
 {/if}
 
 <style>
-  .screen {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-  }
   .tee {
     padding: 16px 24px 32px;
     overflow-y: auto;
@@ -125,6 +141,13 @@
     font-weight: 700;
     line-height: 1;
   }
+  .played-note {
+    margin: 4px 0 0;
+    padding: 12px 14px;
+    border: 2px solid var(--outline);
+    font-size: 15px;
+    line-height: 1.4;
+  }
   .tee-actions {
     display: flex;
     flex-direction: column;
@@ -142,7 +165,6 @@
     font-size: 14px;
     flex-wrap: wrap;
   }
-
   @media (min-width: 1024px) {
     .tee {
       width: 100%;

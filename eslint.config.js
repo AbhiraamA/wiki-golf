@@ -35,6 +35,15 @@ export default ts.config(
         { property: 'innerHTML', message: 'Build DOM nodes instead (plan.md hard rule 2).' },
         { property: 'outerHTML', message: 'Build DOM nodes instead (plan.md hard rule 2).' },
       ],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
+  },
+  {
+    // Dev-only fixture and tests: controlled data, so non-null assertions are fine.
+    files: ['**/*.test.ts', 'web/src/lib/mock.ts'],
+    rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
   },
 );
