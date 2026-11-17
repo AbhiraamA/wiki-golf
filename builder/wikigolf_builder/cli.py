@@ -1,4 +1,4 @@
-"""Command line: `python -m wikigolf_builder build ...` and `... approve ...`."""
+"""Command line: `build` (CI), plus `show` and `approve` (local, for the owner to review R2)."""
 
 from __future__ import annotations
 
@@ -111,10 +111,8 @@ def build(args: argparse.Namespace) -> int:
             log(f"{date}: no hole found")
             missing.append(date)
             continue
-        log(
-            f"{date}: #{hole.hole_no} par {hole.par} {g.titles[hole.start]} -> "
-            f"{g.titles[hole.target]} (difficulty {hole.difficulty}, {hole.routes:.0f} routes)"
-        )
+        # No titles or routes in build logs: the repo is public, so the Actions log is public.
+        log(f"{date}: #{hole.hole_no} par {hole.par} found (route verified)")
         holes.append(hole)
     # Edges dropped during verification change distances: recompute every hole's file at the end.
     for hole in holes:
@@ -137,6 +135,7 @@ def build(args: argparse.Namespace) -> int:
         holes=holes,
         missing=missing,
         removed=picker.removed_edges,
+        verified=not args.no_verify,
         timings={
             **g.timings,
             "graph total": graph_secs,
@@ -179,29 +178,80 @@ def upload_all(r2, out: Path, snap: str, snapshot_files, written, new_entries) -
     return f"yes: {len(done)} holes, {r2.puts} objects written"
 
 
-def render_summary(g, holes, missing, removed, timings, uploaded) -> str:
+def render_summary(g, holes, missing, removed, verified, timings, uploaded) -> str:
+    # No titles or routes here: this goes to the public Actions job summary. Owners review the
+    # start and target privately with `python -m wikigolf_builder show`.
+    check = "passed" if verified else "skipped (--no-verify)"
     lines = [
         f"## Wiki Golf holes: {g.snap}",
         "",
         f"- Articles: {g.n:,}  Links: {g.link_count:,}  Redirect titles: {len(g.title_to_idx) - g.n:,}",
+        f"- Holes built: {len(holes)}  No hole found: {len(missing)}",
         f"- Peak memory: {peak_memory_mb():,.0f} MB",
         f"- Uploaded to R2: {uploaded}",
         f"- Links dropped after HTML check: {len(removed)}",
         "",
-        "| Date | Hole | Par | Start | Target | Verified shortest route | Difficulty | Routes |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "Start, target and route are withheld from this public log. Review them with "
+        "`python -m wikigolf_builder show --status queued` before approving.",
+        "",
+        "| Date | Hole | Par | Route check |",
+        "| --- | --- | --- | --- |",
     ]
     for h in holes:
-        route = " → ".join(g.titles[i].replace("_", " ") for i in h.route)
-        lines.append(
-            f"| {h.date} | {h.hole_no} | {h.par} | {g.titles[h.start].replace('_', ' ')} | "
-            f"{g.titles[h.target].replace('_', ' ')} | {route} | {h.difficulty} | {h.routes:,.0f} |"
-        )
+        lines.append(f"| {h.date} | {h.hole_no} | {h.par} | {check} |")
     if missing:
         lines += ["", f"**No hole found for:** {', '.join(missing)}"]
     lines += ["", "| Stage | Seconds |", "| --- | --- |"]
     lines += [f"| {k} | {v:,.1f} |" for k, v in timings.items()]
     return "\n".join(lines)
+
+
+def _oldid_url(wiki: str, rev_id: int) -> str:
+    lang = wiki_settings(wiki).lang
+    return f"https://{lang}.wikipedia.org/w/index.php?oldid={rev_id}"
+
+
+def _select_dates(index: dict, dates, through, status) -> list[str]:
+    if dates:
+        return list(dates)
+    entries = index.get("holes", [])
+    return [
+        e["date"]
+        for e in entries
+        if (through is None or e["date"] <= through) and (status is None or e["status"] == status)
+    ]
+
+
+def show(args: argparse.Namespace) -> int:
+    """Print full hole details from R2 for local review. Not used in CI (would leak answers)."""
+    from .upload import R2
+
+    r2 = R2()
+    index = r2.get_json("holes/index.json") or {"holes": []}
+    dates = _select_dates(index, args.dates, args.through, args.status)
+    if not dates:
+        log("No matching holes in R2.")
+        return 0
+    for date in sorted(dates):
+        rec = r2.get_json(f"holes/{date}.json")
+        if rec is None:
+            log(f"{date}: not found in R2")
+            continue
+        start, target = rec["start"], rec["target"]
+        log(
+            f"\n── {date}  hole #{rec['holeNo']}  par {rec['par']} "
+            f"(pick up {rec['pickUp']})  [{rec['status']}]"
+        )
+        log(
+            f"   {rec['wiki']} {rec['snap']}  shortest {rec['shortest']} clicks  "
+            f"difficulty {rec['difficulty']}"
+        )
+        log(f"   start:  {start['title'].replace('_', ' ')}")
+        log(f"           {_oldid_url(rec['wiki'], start['revId'])}")
+        log(f"   target: {target['title'].replace('_', ' ')}")
+        log(f"           {_oldid_url(rec['wiki'], target['revId'])}")
+    log("\n(The route is not stored in R2. Review judges the start and target articles.)")
+    return 0
 
 
 def approve(args: argparse.Namespace) -> int:
@@ -253,6 +303,12 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--no-verify", action="store_true", help="Skip the HTML route check (tests)")
     b.add_argument("--pick", action="append", metavar="KEY=N", help="Override a pick setting")
     b.set_defaults(func=build)
+
+    s = sub.add_parser("show", help="Print full hole details from R2 for local review")
+    s.add_argument("--dates", nargs="+", help="Specific dates; default is all in the index")
+    s.add_argument("--through", help="Only holes up to this date")
+    s.add_argument("--status", choices=["queued", "approved"], help="Only holes with this status")
+    s.set_defaults(func=show)
 
     a = sub.add_parser("approve", help="Mark queued holes as approved in R2")
     g = a.add_mutually_exclusive_group(required=True)

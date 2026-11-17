@@ -41,8 +41,11 @@ The owner approved these deviations on 2026-11-17.
 - [x] `.github/workflows/build-holes.yml` (manual + monthly, `timeout-minutes: 350`, job summary with holes, counts, peak memory, timings, disk)
 - [x] CI `builder` job: ruff check, ruff format check, pytest
 - [x] Pages file layout decided and recorded in `plan.md` section 4 (chunks of 1000)
+- [x] `show` command (local review): `python -m wikigolf_builder show --status queued` prints each hole's start, target, par, difficulty and pinned-revision links from R2; needs the R2 env vars
 - [x] `approve` command: `python -m wikigolf_builder approve --dates 2026-12-01 …` or `--through 2026-12-14` (add `--dry-run` to preview); needs the R2 env vars
-- [ ] Manual run with `wiki=simplewiki, days=30` uploads 30 holes, shards and distance files to R2; job summary shows each hole with a verified shortest route
+- [x] Public build logs and job summary carry no start, target or route (owner decision, 2026-11-17); endpoints are reviewed privately with `show`
+- [x] Starter `builder/blocklist.txt` drafted for owner review (violent events/atrocities, sexual content, suicide/self-harm, deaths/disasters, slurs, extremist groups, divisive political figures)
+- [ ] Manual run with `wiki=simplewiki, days=30` uploads 30 holes, shards and distance files to R2 (job summary shows date/hole/par/route-check only)
 
 ### Notes and decisions
 
@@ -53,7 +56,8 @@ The owner approved these deviations on 2026-11-17.
 - **Thresholds:** start/target must be at least 2,000 bytes (simplewiki) or 5,000 bytes (enwiki) to count as "not very short". Each date tries up to 40 random candidate targets and 12 starts per target.
 - **No overwrites:** the builder skips dates already in `holes/index.json` and never re-uploads an existing hole or snapshot. It never deletes anything in R2.
 - **Index:** `holes/index.json` includes start/target titles for the no-repeat rules (recorded in plan section 4).
-- **Spoilers:** the plan asks for the job summary to list every hole and route. The repo is public, so anyone can read upcoming holes in the Actions logs. Options for the owner: accept it during the beta, make summaries list routes only for holes in the past, or print routes only to a private place.
+- **Spoilers (decided 2026-11-17):** routes and endpoints stay out of the public Actions logs. The build step log and the job summary show only date, hole number, par and route-check result; the per-hole progress line and the dropped-link line carry no titles either. The owner reviews start/target privately with `show` before `approve`. The route itself is never stored in R2 (it would be served to clients), so `show` reviews the start and target articles — the two endpoints a hole can get wrong.
+- **Blocklist:** `builder/blocklist.txt` is a conservative starter list for the owner to review and extend. Actual slur words are deliberately not written into this public file; add specific slur-titled articles during private review. "Recent" deaths/disasters can't be captured statically — review each build's queued holes with `show`.
 - **Memory:** edges are de-duplicated with one in-memory `np.unique` over int64 keys. Fine for simplewiki; for enwiki (~1.5 billion link rows) Phase 6 will need chunked sorting or memory-mapped arrays, as the plan anticipates.
 
 ## Open questions for the owner

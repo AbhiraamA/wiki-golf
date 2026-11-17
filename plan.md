@@ -323,7 +323,7 @@ That serves roughly 3,000–5,000 players a day. Log a warning when daily usage 
 | --- | --- | --- |
 | `ci.yml` | Pull requests and pushes | Typecheck, lint, `vitest` (shared, worker, web), `pytest` (builder with fixtures) |
 | `deploy.yml` | Push to `main` | Build web, `wrangler d1 migrations apply --remote`, `wrangler deploy` |
-| `build-holes.yml` | Manual (`wiki`, `days`, `start`) and monthly schedule | Run the builder with `--upload`; `timeout-minutes: 350`; write a job summary table of new holes, counts, peak memory and run time |
+| `build-holes.yml` | Manual (`wiki`, `days`, `start`) and monthly schedule | Run the builder with `--upload`; `timeout-minutes: 350`; write a job summary with each new hole's date, number, par and route-check result, plus counts, peak memory and run time. The repo is public, so start, target and route are withheld from the summary and logs (owner decision 2026-11-17); the owner reviews endpoints with `python -m wikigolf_builder show` before approving. |
 
 Secrets the owner adds in GitHub (Settings → Secrets and variables → Actions): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`.
 
