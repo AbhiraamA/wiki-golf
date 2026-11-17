@@ -1,3 +1,107 @@
-# Titles that must never be a start or target (sensitive topics).
-# One title per line, spaces or underscores, case-insensitive. Lines starting with # are comments.
-# Reviewed by the owner. Pages listed here can still appear in the middle of a route.
+# Wiki Golf blocklist — titles that may never be a START or TARGET of a hole.
+# (Excluded pages can still appear in the MIDDLE of a route; this only governs the two
+# endpoints a player is told to connect.)
+#
+# One title per line. Case-insensitive; spaces and underscores are treated the same, so
+# "Jules Verne" and "jules_verne" match the same article. Lines starting with # are comments.
+#
+# This is a STARTER list drafted for the owner to review, edit and extend. It is deliberately
+# conservative — err toward excluding. Removing an entry is as valid as adding one.
+#
+# Note on coverage: the builder already auto-excludes list pages, years/dates, disambiguation
+# pages and very short stubs by pattern, so those are not repeated here.
+
+
+# ── Violent events, war crimes and atrocities ───────────────────────────────
+The Holocaust
+Genocide
+Armenian genocide
+Rwandan genocide
+Cambodian genocide
+Holodomor
+Nanjing Massacre
+Transatlantic slave trade
+Slavery
+Lynching
+Ethnic cleansing
+Terrorism
+September 11 attacks
+Mass shooting
+School shooting
+Torture
+War crime
+Crimes against humanity
+
+
+# ── Sexual content ──────────────────────────────────────────────────────────
+Pornography
+Child pornography
+Rape
+Sexual assault
+Sexual abuse
+Child sexual abuse
+Pedophilia
+Incest
+Prostitution
+Sex trafficking
+Human trafficking
+Zoophilia
+
+
+# ── Suicide and self-harm ───────────────────────────────────────────────────
+Suicide
+Suicide methods
+Assisted suicide
+Self-harm
+Eating disorder
+Anorexia nervosa
+
+
+# ── Deaths and disasters ────────────────────────────────────────────────────
+# "Recent" is time-relative and cannot be fully captured in a static file. Review the queued
+# holes each build (`show`) and add any article about a very recent death, attack or disaster.
+# The entries below are long-standing mass-casualty events.
+COVID-19 pandemic
+Spanish flu
+2004 Indian Ocean earthquake and tsunami
+Chernobyl disaster
+Fukushima nuclear disaster
+Hurricane Katrina
+Bhopal disaster
+
+
+# ── Slurs ───────────────────────────────────────────────────────────────────
+# Specific slur-titled articles are intentionally NOT spelled out here, so this public file
+# does not itself contain slurs. Add any such exact article titles in your own review; the
+# meta-articles about slurs are listed so they are never endpoints.
+Racial slur
+Ethnic slur
+Homophobic slur
+Religious slur
+
+
+# ── Extremist groups and ideologies ─────────────────────────────────────────
+Nazism
+Nazi Party
+Neo-Nazism
+Fascism
+White supremacy
+Ku Klux Klan
+Al-Qaeda
+Islamic State
+Taliban
+Boko Haram
+Hamas
+
+
+# ── Divisive political figures ──────────────────────────────────────────────
+# Kept short and limited to figures widely regarded as controversial or as perpetrators of
+# large-scale harm. Review and adjust to your own judgement before launch.
+Adolf Hitler
+Joseph Stalin
+Benito Mussolini
+Pol Pot
+Mao Zedong
+Osama bin Laden
+Vladimir Putin
+Donald Trump

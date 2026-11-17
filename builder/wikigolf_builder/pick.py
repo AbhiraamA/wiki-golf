@@ -176,9 +176,8 @@ class Picker:
                 self.history.add(date, self.g.titles[start], self.g.titles[target])
                 return hole
             u, v = broken
-            self.log(
-                f"  {date}: link {self.g.titles[u]} -> {self.g.titles[v]} not in HTML; dropped"
-            )
+            # No titles in the log: build output is public (see render_summary).
+            self.log(f"  {date}: a route link was missing from the page HTML; dropped, retrying")
             self.g.remove_edge(u, v)
             self.removed_edges.append(broken)
         return None
