@@ -1,0 +1,8 @@
+node_modules
+dist
+.wrangler
+worker/worker-configuration.d.ts
+package-lock.json
+design/
+plan.md
+builder/
