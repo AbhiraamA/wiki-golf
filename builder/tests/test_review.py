@@ -85,7 +85,7 @@ def fake(monkeypatch):
 
 
 def test_show_prints_titles_and_links(fake, capsys):
-    assert main(["show", "--status", "queued"]) == 0
+    assert main(["show", "--via", "keys", "--status", "queued"]) == 0
     out = capsys.readouterr().out
     assert "2026-12-07" in out and "Apollo 11" in out and "Octopus" in out
     assert "oldid=5012" in out  # pinned-revision link for the owner
@@ -93,7 +93,7 @@ def test_show_prints_titles_and_links(fake, capsys):
 
 
 def test_approve_flips_status(fake):
-    assert main(["approve", "--dates", "2026-12-07"]) == 0
+    assert main(["approve", "--via", "keys", "--dates", "2026-12-07"]) == 0
     assert json.loads(fake.objects["simplewiki/holes/2026-12-07.json"])["status"] == "approved"
     index = json.loads(fake.objects["simplewiki/holes/index.json"])
     assert {e["date"]: e["status"] for e in index["holes"]}["2026-12-07"] == "approved"
@@ -101,7 +101,7 @@ def test_approve_flips_status(fake):
 
 def test_approve_dry_run_changes_nothing(fake):
     before = dict(fake.objects)
-    assert main(["approve", "--through", "2026-12-31", "--dry-run"]) == 0
+    assert main(["approve", "--via", "keys", "--through", "2026-12-31", "--dry-run"]) == 0
     assert fake.objects == before
 
 
@@ -123,8 +123,7 @@ def test_summary_never_contains_titles():
         shortest=3,
         start=oct_i,
         target=apollo_i,
-        difficulty=0.4,
-        routes=2,
+        difficulty=0.5,
         route=[oct_i, apollo_i],
         dist=np.zeros(g.n, np.uint8),
     )
@@ -160,3 +159,22 @@ def test_relayout_moves_old_keys_under_wiki(monkeypatch):
     assert "distances/2026-12-07.bin" not in store.objects
     assert "snapshots/simplewiki-20261101/meta.json" in store.objects
     assert store.objects["simplewiki/holes/2026-12-08.json"] == b"{}"
+
+
+def test_clear_deletes_wiki_holes(monkeypatch):
+    store = FakeR2(
+        {
+            "simplewiki/holes/2026-12-07.json": b"{}",
+            "simplewiki/holes/index.json": b'{"holes":[]}',
+            "simplewiki/distances/2026-12-07.bin": b"\x00",
+            "enwiki/holes/2026-12-07.json": b"{}",  # another wiki: untouched
+            "snapshots/simplewiki-20261101/meta.json": b"{}",  # snapshot: untouched
+        }
+    )
+    monkeypatch.setattr(upload_mod, "R2", lambda *a, **k: store)
+    assert main(["clear", "--wiki", "simplewiki"]) == 0  # dry run
+    assert "simplewiki/holes/2026-12-07.json" in store.objects
+    assert main(["clear", "--wiki", "simplewiki", "--apply"]) == 0
+    assert not any(k.startswith("simplewiki/") for k in store.objects)
+    assert "enwiki/holes/2026-12-07.json" in store.objects
+    assert "snapshots/simplewiki-20261101/meta.json" in store.objects

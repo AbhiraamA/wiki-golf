@@ -58,7 +58,7 @@ def write_snapshot(g: Graph, out: Path, shard_count: int) -> list[Path]:
 
 
 def hole_record(g: Graph, h: Hole, status: str = "queued") -> dict:
-    return {
+    record = {
         "holeNo": h.hole_no,
         "date": h.date,
         "snap": g.snap,
@@ -71,6 +71,9 @@ def hole_record(g: Graph, h: Hole, status: str = "queued") -> dict:
         "difficulty": h.difficulty,
         "status": status,
     }
+    if h.badge:  # themed days carry a badge the tee screen can show
+        record["badge"] = h.badge
+    return record
 
 
 def index_entry(record: dict) -> dict:

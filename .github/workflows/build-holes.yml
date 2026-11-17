@@ -24,6 +24,10 @@ on:
         description: Upload to R2
         type: boolean
         default: true
+      reset:
+        description: Delete this wiki's existing holes first, so the build replaces them
+        type: boolean
+        default: false
   schedule:
     # Monthly, a few days after the 1st-of-month dumps usually finish.
     - cron: '0 6 5 * *'
@@ -58,6 +62,9 @@ jobs:
       # Editable install so the package reads shared/config.json and builder/blocklist.txt
       # from the checked-out repo tree (they live outside the package directory).
       - run: pip install -e ./builder
+      - name: Reset existing holes
+        if: ${{ inputs.reset }}
+        run: python -m wikigolf_builder clear --wiki "$WIKI" --apply
       - name: Build holes
         run: |
           args=(build --wiki "$WIKI" --days "$DAYS" --start "$START" --out "$RUNNER_TEMP/out")

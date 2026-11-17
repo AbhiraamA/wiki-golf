@@ -1,18 +1,25 @@
-"""Choose one hole per date: par from the schedule, then a (start, target) pair. plan.md 5.3."""
+"""Choose one hole per date.
+
+Par comes from the weekday schedule. Both endpoints must be recognisable: the target sits in the
+top few percent of articles by incoming links and the start in the top fifth (the "fame filter").
+Difficulty is a function of the shortest distance, not of obscurity. Themed dates pin the target
+from a private calendar and skip the fame filter for it (the owner chose it), then find a
+well-known start at a fitting distance. See plan.md section 5.3 and themes.py.
+"""
 
 from __future__ import annotations
 
 import datetime as dt
-import math
 import random
 from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
 
-from .bfs import distances_to, gather
-from .config import HOLE_EPOCH, PAR_RANGES, TARGET_DIFFICULTY, PickSettings
+from .bfs import distances_to
+from .config import HOLE_EPOCH, MAX_DISTANCE, PAR_RANGES, PickSettings
 from .graph import Graph
+from .themes import Theme
 from .verify import first_broken_edge
 
 
@@ -25,9 +32,9 @@ class Hole:
     start: int
     target: int
     difficulty: float
-    routes: float
     route: list[int]  # one verified shortest route, start..target
     dist: np.ndarray
+    badge: dict | None = None  # {label, emoji} on themed days, else None
 
     @property
     def pick_up(self) -> int:
@@ -70,35 +77,14 @@ def hole_number(date: str, epoch: str = HOLE_EPOCH) -> int:
     return (dt.date.fromisoformat(date) - dt.date.fromisoformat(epoch)).days + 1
 
 
-def route_stats(g: Graph, start: int, dist: np.ndarray, hubs: np.ndarray) -> tuple[float, float]:
-    """(number of distinct shortest routes, share of on-route pages that are hubs)."""
-    d = int(dist[start])
-    layer = np.array([start], dtype=np.int64)
-    ways = np.ones(1)
-    middle: list[np.ndarray] = []
-    for k in range(d, 0, -1):
-        srcs, nbrs = gather(g.fwd_off, g.fwd_tgt, layer)
-        keep = dist[nbrs] == k - 1
-        srcs, nbrs = srcs[keep], nbrs[keep]
-        nxt = np.unique(nbrs)
-        nxt_ways = np.zeros(len(nxt))
-        np.add.at(nxt_ways, np.searchsorted(nxt, nbrs), ways[np.searchsorted(layer, srcs)])
-        if k > 1:
-            middle.append(nxt)
-        layer, ways = nxt, nxt_ways
-    total_ways = float(ways.sum())
-    inner = np.concatenate(middle) if middle else np.zeros(0, dtype=np.int64)
-    hub_share = float(hubs[inner].mean()) if inner.size else 0.0
-    return total_ways, hub_share
+def difficulty_from_distance(d: int) -> float:
+    """0..1, driven only by how many clicks the shortest route is."""
+    return round(min(d, MAX_DISTANCE) / MAX_DISTANCE, 2)
 
 
-def difficulty_score(routes: float, target_in: int, hub_share: float, s: PickSettings) -> float:
-    route_term = 1.0 / (1.0 + math.log10(max(routes, 1.0)))
-    span = math.log(s.target_max_in / s.target_min_in)
-    back_term = 1.0 - math.log(max(target_in, s.target_min_in) / s.target_min_in) / span
-    back_term = min(max(back_term, 0.0), 1.0)
-    hub_term = 1.0 - hub_share
-    return round((route_term + back_term + hub_term) / 3.0, 3)
+def fame_threshold(indeg: np.ndarray, top_fraction: float) -> int:
+    """Smallest in-degree that puts an article in roughly the top `top_fraction` by inlinks."""
+    return int(np.quantile(indeg, 1.0 - top_fraction))
 
 
 def shortest_route(g: Graph, start: int, dist: np.ndarray) -> list[int]:
@@ -129,80 +115,146 @@ class Picker:
         self.log = log
         indeg = g.in_degree()
         self.indeg = indeg
-        self.target_ok = ~excluded & (indeg >= settings.target_min_in)
-        self.target_ok &= indeg <= settings.target_max_in
-        self.start_ok = ~excluded & (indeg >= settings.start_min_in)
-        hubs = np.zeros(g.n, dtype=bool)
-        hubs[np.argsort(-indeg, kind="stable")[: settings.hub_count]] = True
-        self.hubs = hubs
+        self.target_thresh = fame_threshold(indeg, settings.target_top_fraction)
+        self.start_thresh_short = fame_threshold(indeg, settings.start_top_fraction_short)
+        self.start_thresh_long = fame_threshold(indeg, settings.start_top_fraction_long)
+        # The fame filter: targets are famous, starts well-known (tiered by hole length). Stubs and
+        # excluded pages are out.
+        self.target_ok = ~excluded & (indeg >= self.target_thresh)
+        self.start_ok_short = ~excluded & (indeg >= self.start_thresh_short)
+        self.start_ok_long = ~excluded & (indeg >= self.start_thresh_long)
         self.removed_edges: list[tuple[int, int]] = []
+
+    def fame_summary(self) -> str:
+        return (
+            f"fame filter: targets >= {self.target_thresh} inlinks "
+            f"({int(self.target_ok.sum())} articles); starts short >= {self.start_thresh_short} "
+            f"({int(self.start_ok_short.sum())}), long >= {self.start_thresh_long} "
+            f"({int(self.start_ok_long.sum())})"
+        )
+
+    def _start_ok(self, used_d: int) -> np.ndarray:
+        return self.start_ok_long if used_d >= self.s.long_distance else self.start_ok_short
 
     def _fresh(self, idx: int, date: str) -> bool:
         return not self.history.recent(self.g.titles[idx], date, self.s.repeat_window_days)
 
+    def _find_start(self, target: int, dist: np.ndarray, dist_list, date, rng):
+        """A well-known, fresh start at one of `dist_list` clicks from the target. (start, used_d)."""
+        for used_d in dist_list:
+            pool = [
+                int(x)
+                for x in np.flatnonzero(self._start_ok(used_d) & (dist == used_d))
+                if int(x) != target
+                and self._fresh(int(x), date)
+                and (self.g.titles[int(x)], self.g.titles[target]) not in self.history.pairs
+            ]
+            if pool:
+                rng.shuffle(pool)
+                return pool[0], used_d
+        return None
+
+    def _one_candidate(self, targets, dist_list, date, rng):
+        """First (start, target, dist, used_d) over `targets` with a start at a `dist_list` click."""
+        for t in targets:
+            dist = distances_to(t, self.g.rev_off, self.g.rev_tgt, self.g.n)
+            found = self._find_start(t, dist, dist_list, date, rng)
+            if found is not None:
+                return found[0], t, dist, found[1]
+        return None
+
+    def _verify(self, route: list[int]) -> tuple[int, int] | None:
+        if self.fetch_html is None:
+            return None
+        return first_broken_edge(route, self.g.rev_ids, self.g.title_to_idx, self.fetch_html)
+
+    def _drop(self, broken: tuple[int, int], date: str) -> None:
+        # No titles in the log: build output is public (see render_summary).
+        self.log(f"  {date}: a route link was missing from the page HTML; dropped, retrying")
+        self.g.remove_edge(*broken)
+        self.removed_edges.append(broken)
+
+    def _finish(self, date, d, start, target, dist, route, badge) -> Hole:
+        self.history.add(date, self.g.titles[start], self.g.titles[target])
+        return Hole(
+            date=date,
+            hole_no=hole_number(date),
+            par=d + 1,
+            shortest=d,
+            start=start,
+            target=target,
+            difficulty=difficulty_from_distance(d),
+            route=route,
+            dist=dist,
+            badge=badge,
+        )
+
+    def _resolve(self, title: str) -> int | None:
+        key = title.replace(" ", "_")
+        idx = self.g.title_to_idx.get(key)
+        if idx is None and key:
+            idx = self.g.title_to_idx.get(key[0].upper() + key[1:])
+        return idx
+
     def pick(self, date: str) -> Hole | None:
+        """A regular hole: famous target, well-known start, at the day's par."""
         par = par_for(date)
         d = par - 1
-        goal = TARGET_DIFFICULTY[dt.date.fromisoformat(date).weekday()]
         rng = random.Random(f"{date}|{self.g.snap}")
         cands = [int(i) for i in np.flatnonzero(self.target_ok) if self._fresh(int(i), date)]
         rng.shuffle(cands)
         cands = cands[: self.s.candidates_per_day]
-
-        for _attempt in range(self.s.max_verify_attempts):
-            best = self._best_pair(date, d, goal, cands, rng)
-            if best is None:
+        for _ in range(self.s.max_verify_attempts):
+            cand = self._one_candidate(cands, [d], date, rng)
+            if cand is None:
                 return None
-            score, routes, start, target, dist = best
+            start, target, dist, used_d = cand
             route = shortest_route(self.g, start, dist)
-            broken = None
-            if self.fetch_html is not None:
-                broken = first_broken_edge(
-                    route, self.g.rev_ids, self.g.title_to_idx, self.fetch_html
-                )
+            broken = self._verify(route)
             if broken is None:
-                hole = Hole(
-                    date=date,
-                    hole_no=hole_number(date),
-                    par=par,
-                    shortest=d,
-                    start=start,
-                    target=target,
-                    difficulty=score,
-                    routes=routes,
-                    route=route,
-                    dist=dist,
-                )
-                self.history.add(date, self.g.titles[start], self.g.titles[target])
-                return hole
-            u, v = broken
-            # No titles in the log: build output is public (see render_summary).
-            self.log(f"  {date}: a route link was missing from the page HTML; dropped, retrying")
-            self.g.remove_edge(u, v)
-            self.removed_edges.append(broken)
+                return self._finish(date, used_d, start, target, dist, route, None)
+            self._drop(broken, date)
         return None
 
-    def _best_pair(self, date, d, goal, cands, rng):
-        g, s = self.g, self.s
-        best = None
-        for t in cands:
-            dist = distances_to(t, g.rev_off, g.rev_tgt, g.n)
-            starts = np.flatnonzero(self.start_ok & (dist == d))
-            starts = [
-                int(x)
-                for x in starts
-                if (g.titles[int(x)], g.titles[t]) not in self.history.pairs
-                and self._fresh(int(x), date)
-            ]
-            if not starts:
-                continue
-            rng.shuffle(starts)
-            for st in starts[: s.starts_per_target]:
-                routes, hub_share = route_stats(g, st, dist, self.hubs)
-                score = difficulty_score(routes, int(self.indeg[t]), hub_share, s)
-                key = abs(score - goal)
-                if best is None or key < best[0]:
-                    best = (key, (score, routes, st, t, dist))
-            if best is not None and best[0] < 0.02:
-                break
-        return None if best is None else best[1]
+    def pick_themed(self, date: str, theme: Theme) -> Hole | None:
+        """A themed hole: the owner's chosen target (fame filter skipped), well-known start.
+
+        Returns None (so the caller falls back to a normal hole) if the target is not in this
+        wiki, or no well-known start fits even after widening the par.
+        """
+        d0 = par_for(date) - 1
+        rng = random.Random(f"{date}|{self.g.snap}|theme")
+        targets = [i for i in (self._resolve(t) for t in theme.targets) if i is not None]
+        # Keep distinct, in a date-seeded order.
+        targets = list(dict.fromkeys(targets))
+        rng.shuffle(targets)
+        if not targets:
+            self.log(f"{date}: themed target not in this wiki; falling back to a normal hole")
+            return None
+        dist_list = _widen(d0, self.s.theme_par_widen)
+        badge = theme.badge.to_json() if theme.badge else None
+        for _ in range(self.s.max_verify_attempts):
+            cand = self._one_candidate(targets, dist_list, date, rng)
+            if cand is None:
+                self.log(
+                    f"{date}: no well-known start for the themed hole within par "
+                    f"{d0 + 1}±{self.s.theme_par_widen}; falling back to a normal hole"
+                )
+                return None
+            start, target, dist, used_d = cand
+            if used_d != d0:
+                self.log(f"{date}: widened themed hole to par {used_d + 1} to fit a start")
+            route = shortest_route(self.g, start, dist)
+            broken = self._verify(route)
+            if broken is None:
+                return self._finish(date, used_d, start, target, dist, route, badge)
+            self._drop(broken, date)
+        return None
+
+
+def _widen(d0: int, widen: int) -> list[int]:
+    """Distances to try, exact first then ±1, ±2 …, dropping anything below 1 click."""
+    out = [d0]
+    for k in range(1, widen + 1):
+        out += [d0 + k, d0 - k]
+    return [d for d in out if d >= 1]

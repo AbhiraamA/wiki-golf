@@ -17,7 +17,21 @@ from .config import BLOCKLIST_PATH, wiki_settings
 from .exclude import excluded_mask, load_blocklist
 from .graph import build_graph
 from .pick import History, Picker
+from .themes import load_themes, theme_for
 from .verify import html_fetcher
+
+THEMES_KEY = "themes.json"  # private calendar in R2 (never in the repo)
+
+
+def load_themes_doc(args, r2) -> dict | None:
+    """The themes.json document: from a local --themes file, else from R2 (upload builds)."""
+    import json
+
+    if args.themes:
+        return json.loads(Path(args.themes).read_text(encoding="utf-8"))
+    if r2 is not None:
+        return r2.get_json(THEMES_KEY)
+    return None
 
 
 def log(msg: str) -> None:
@@ -53,6 +67,7 @@ def resolve_start(start: str, index: dict) -> str:
 
 
 def parse_overrides(pairs: list[str], base):
+    # f.type is a string annotation here (config.py uses `from __future__ import annotations`).
     fields = {f.name: f.type for f in dataclasses.fields(base)}
     changes = {}
     for pair in pairs:
@@ -60,7 +75,7 @@ def parse_overrides(pairs: list[str], base):
         key = key.replace("-", "_")
         if key not in fields:
             raise SystemExit(f"Unknown --pick setting {key!r}; known: {', '.join(fields)}")
-        changes[key] = int(value)
+        changes[key] = float(value) if fields[key] == "float" else int(value)
     return dataclasses.replace(base, **changes)
 
 
@@ -110,17 +125,26 @@ def build(args: argparse.Namespace) -> int:
     )
     fetch = None if args.no_verify else html_fetcher(session, settings.lang)
     picker = Picker(g, excluded, pick_settings, History.from_index(index["holes"]), fetch, log=log)
+    log(picker.fame_summary())
+
+    themes = load_themes(load_themes_doc(args, r2))
+    if themes:
+        log(f"Loaded {len(themes)} themed-day rule(s)")
 
     t0 = time.monotonic()
     holes, missing = [], []
     for date in dates:
-        hole = picker.pick(date)
+        theme = theme_for(date, themes)
+        hole = picker.pick_themed(date, theme) if theme else None
+        if hole is None:
+            hole = picker.pick(date)
         if hole is None:
             log(f"{date}: no hole found")
             missing.append(date)
             continue
         # No titles or routes in build logs: the repo is public, so the Actions log is public.
-        log(f"{date}: #{hole.hole_no} par {hole.par} found (route verified)")
+        tag = " themed" if hole.badge else ""
+        log(f"{date}: #{hole.hole_no} par {hole.par}{tag} found (route verified)")
         holes.append(hole)
     # Edges dropped during verification change distances: recompute every hole's file at the end.
     for hole in holes:
@@ -220,6 +244,17 @@ def _oldid_url(wiki: str, rev_id: int) -> str:
     return f"https://{lang}.wikipedia.org/w/index.php?oldid={rev_id}"
 
 
+def open_r2(via: str):
+    """R2 client for review commands. 'wrangler' uses the owner's login; 'keys' uses S3 keys."""
+    if via == "keys":
+        from .upload import R2
+
+        return R2()
+    from .wrangler_r2 import WranglerR2
+
+    return WranglerR2()
+
+
 def _select_dates(index: dict, dates, through, status) -> list[str]:
     if dates:
         return list(dates)
@@ -233,9 +268,7 @@ def _select_dates(index: dict, dates, through, status) -> list[str]:
 
 def show(args: argparse.Namespace) -> int:
     """Print full hole details from R2 for local review. Not used in CI (would leak answers)."""
-    from .upload import R2
-
-    r2 = R2()
+    r2 = open_r2(args.via)
     index = r2.get_json(index_key(args.wiki)) or {"holes": []}
     dates = _select_dates(index, args.dates, args.through, args.status)
     if not dates:
@@ -255,6 +288,8 @@ def show(args: argparse.Namespace) -> int:
             f"   {rec['wiki']} {rec['snap']}  shortest {rec['shortest']} clicks  "
             f"difficulty {rec['difficulty']}"
         )
+        if rec.get("badge"):
+            log(f"   badge:  {rec['badge']['emoji']} {rec['badge']['label']}")
         log(f"   start:  {start['title'].replace('_', ' ')}")
         log(f"           {_oldid_url(rec['wiki'], start['revId'])}")
         log(f"   target: {target['title'].replace('_', ' ')}")
@@ -264,9 +299,7 @@ def show(args: argparse.Namespace) -> int:
 
 
 def approve(args: argparse.Namespace) -> int:
-    from .upload import R2
-
-    r2 = R2()
+    r2 = open_r2(args.via)
     index = r2.get_json(index_key(args.wiki)) or {"holes": []}
     if args.through:
         dates = [
@@ -335,6 +368,25 @@ def relayout(args: argparse.Namespace) -> int:
     return 0
 
 
+def clear(args: argparse.Namespace) -> int:
+    """Delete a wiki's holes, distances and index from R2 (so a rebuild can replace them)."""
+    from .upload import R2
+
+    r2 = R2()
+    keys = r2.list_keys(f"{args.wiki}/holes/") + r2.list_keys(f"{args.wiki}/distances/")
+    if not keys:
+        log(f"Nothing to clear under {args.wiki}/.")
+        return 0
+    log(f"{'Deleting' if args.apply else 'Would delete'} {len(keys)} object(s) under {args.wiki}/")
+    if not args.apply:
+        log("Dry run: pass --apply to delete.")
+        return 0
+    for key in keys:
+        r2.delete(key)
+    log(f"Deleted {len(keys)} object(s).")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="wikigolf_builder")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -350,10 +402,12 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--index", help="Local holes/index.json to treat as history (no upload)")
     b.add_argument("--no-verify", action="store_true", help="Skip the HTML route check (tests)")
     b.add_argument("--pick", action="append", metavar="KEY=N", help="Override a pick setting")
+    b.add_argument("--themes", help="Local themes.json (default: R2 themes.json on --upload)")
     b.set_defaults(func=build)
 
     s = sub.add_parser("show", help="Print full hole details from R2 for local review")
     s.add_argument("--wiki", default="simplewiki")
+    s.add_argument("--via", choices=["wrangler", "keys"], default="wrangler", help="R2 access")
     s.add_argument("--dates", nargs="+", help="Specific dates; default is all in the index")
     s.add_argument("--through", help="Only holes up to this date")
     s.add_argument("--status", choices=["queued", "approved"], help="Only holes with this status")
@@ -361,6 +415,7 @@ def main(argv: list[str] | None = None) -> int:
 
     a = sub.add_parser("approve", help="Mark queued holes as approved in R2")
     a.add_argument("--wiki", default="simplewiki")
+    a.add_argument("--via", choices=["wrangler", "keys"], default="wrangler", help="R2 access")
     g = a.add_mutually_exclusive_group(required=True)
     g.add_argument("--dates", nargs="+")
     g.add_argument("--through", help="Approve every queued hole up to this date")
@@ -374,6 +429,11 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--apply", action="store_true", help="Perform the copies (default: dry run)")
     r.add_argument("--delete-old", action="store_true", help="Delete originals after copying")
     r.set_defaults(func=relayout)
+
+    c = sub.add_parser("clear", help="Delete a wiki's holes, distances and index from R2")
+    c.add_argument("--wiki", default="simplewiki")
+    c.add_argument("--apply", action="store_true", help="Perform the deletes (default: dry run)")
+    c.set_defaults(func=clear)
 
     args = p.parse_args(argv)
     return args.func(args)
