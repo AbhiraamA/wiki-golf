@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wiki Golf UI Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+:root {
+  /* Layout: one game column on phones; at 1024px+ the article and a side panel share a centred 1080px frame. Single visual world, no light theme. */
+  --night: #123828;
+  --grass: #2F7A4A;
+  --grass-dot: #2A7044;
+  --fairway: #86C98A;
+  --green: #B4E08A;
+  --paper: #F4EBD0;
+  --paper-line: #CDBF97;
+  --paper-bright: #FFFDF7;
+  --ink: #142019;
+  --ink-soft: #5A6358;
+  --mist: #A9C7B2;
+  --mist-light: #DCEBD8;
+  --outline: #5E8A70;
+  --flag: #E8452C;
+  --flag-dark: #A92E1B;
+  --flag-ink: #FFF7E6;
+  --sand: #E9C977;
+  --gold: #F6D77A;
+  --shadow: #0B1F16;
+  --link: #2F9A55;
+  --link-text: #24663D;
+  --font-display: "Pixelify Sans", "Courier New", monospace;
+  --font-body: "Atkinson Hyperlegible", Verdana, system-ui, sans-serif;
+  --frame: 0 -4px 0 0 var(--shadow), 0 4px 0 0 var(--shadow), -4px 0 0 0 var(--shadow), 4px 0 0 0 var(--shadow);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--night); color: var(--paper); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; }
+:focus-visible { outline: 3px solid var(--sand); outline-offset: 3px; }
+[hidden] { display: none !important; }
+svg.px { shape-rendering: crispEdges; display: block; }
+
+#app { height: 100%; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; }
+.screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Shared controls */
+.btn-primary {
+  display: flex; align-items: center; justify-content: center; width: 100%; height: 60px; border: 0;
+  background: var(--flag); color: var(--flag-ink); font-family: var(--font-display); font-size: 24px; font-weight: 700;
+  letter-spacing: 2px; text-shadow: 2px 2px 0 #7A2213; cursor: pointer;
+  box-shadow: var(--frame), inset 0 -5px 0 0 var(--flag-dark);
+}
+.btn-primary:active { transform: translateY(2px); box-shadow: var(--frame), inset 0 -2px 0 0 var(--flag-dark); }
+.btn-ghost {
+  min-height: 48px; padding: 0 16px; border: 2px solid var(--outline); background: transparent; color: var(--paper);
+  font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.btn-ghost:hover { border-color: var(--mist); }
+.btn-text { min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--mist); font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.icon-btn { width: 44px; height: 44px; border: 0; padding: 0; background: transparent; color: var(--mist); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+/* Tee screen */
+.tee { padding: 16px 24px 32px; overflow-y: auto; }
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-right: -12px; }
+.wordmark { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+.tee-art { margin-top: 24px; box-shadow: var(--frame); }
+.tee-art svg { width: 100%; height: auto; }
+.tee-info { display: flex; flex-direction: column; gap: 12px; margin-top: 40px; }
+.eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; color: var(--mist); }
+.route-title { margin: 0; font-family: var(--font-display); font-size: clamp(30px, 8vw, 36px); font-weight: 600; line-height: 1.15; text-wrap: balance; }
+.route-title .to { color: var(--mist); }
+.par-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.par-chip { padding: 6px 10px; background: var(--sand); color: var(--ink); font-family: var(--font-display); font-size: 18px; font-weight: 700; line-height: 1; }
+.muted { color: var(--mist); font-size: 15px; }
+.played-note { margin: 4px 0 0; padding: 12px 14px; border: 2px solid var(--outline); font-size: 15px; line-height: 1.4; }
+.tee-actions { display: flex; flex-direction: column; gap: 12px; margin-top: auto; padding-top: 32px; }
+.tee-foot { display: flex; justify-content: center; align-items: center; gap: 8px; color: var(--mist); font-size: 14px; flex-wrap: wrap; }
+
+/* Play screen: course bar */
+.course-head {
+  padding: 12px 16px 10px; background-color: var(--grass);
+  background-image: repeating-conic-gradient(var(--grass-dot) 0% 25%, transparent 0% 50%); background-size: 8px 8px;
+  box-shadow: 0 4px 0 0 var(--shadow); position: relative; z-index: 1;
+}
+.course-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-family: var(--font-display); font-size: 16px; font-weight: 600; }
+.course-meta .left { display: flex; align-items: baseline; gap: 10px; }
+.practice-chip { padding: 3px 6px 2px; background: var(--paper); color: var(--ink); font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+.course { position: relative; height: 80px; margin-top: 4px; }
+.course .band { position: absolute; left: 0; right: 0; top: 48px; height: 12px; background: var(--fairway); }
+.course .greenpatch { position: absolute; right: 0; top: 42px; width: 64px; height: 24px; background: var(--green); }
+.course .teebox { position: absolute; left: 0; top: 44px; width: 10px; height: 20px; background: var(--green); }
+.course .flag { position: absolute; right: 22px; top: 20px; }
+.course .ball { position: absolute; left: calc(var(--ball, 2%) - 8px); top: 46px; transition: left 450ms steps(6, end); }
+.course .tag-wrap { position: absolute; top: 8px; left: var(--tag, 14%); transform: translateX(-50%); transition: left 450ms steps(6, end); }
+.tag { display: block; padding: 5px 8px 4px; white-space: nowrap; background: var(--paper); color: var(--ink); font-family: var(--font-display); font-size: 14px; font-weight: 700; line-height: 1; box-shadow: 0 0 0 2px var(--shadow); }
+.tag[data-kind="fairway"] { background: var(--fairway); }
+.tag[data-kind="rough"] { background: var(--night); color: var(--paper); }
+.tag[data-kind="bunker"] { background: var(--sand); }
+.tag[data-kind="caddie"] { background: var(--gold); }
+.course .end { position: absolute; bottom: 0; font-size: 13px; font-weight: 700; color: var(--paper); text-shadow: 1px 1px 0 var(--shadow); }
+.course .end.right { right: 0; }
+.course-meta { text-shadow: 1px 1px 0 var(--shadow); }
+
+/* Play screen: article card */
+.play-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.card {
+  flex: 1; min-height: 0; overflow-y: auto; margin: 20px 16px 0; padding: 20px;
+  background: var(--paper); color: var(--ink); box-shadow: var(--frame); display: flex; flex-direction: column;
+}
+.card h1 { margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 600; line-height: 1.1; text-wrap: balance; }
+.card .desc { margin: 6px 0 0; font-size: 15px; color: var(--ink-soft); }
+.card .body { margin: 16px 0 0; font-size: 17px; line-height: 1.7; color: #1E2A22; max-width: 65ch; }
+.wlink { font-weight: 700; color: var(--ink); text-decoration: underline; text-decoration-color: var(--link); text-decoration-thickness: 3px; text-underline-offset: 4px; cursor: pointer; }
+.wlink:hover { background: #E3EDD3; }
+.wlink.hint { background: var(--gold); text-decoration-color: #A97C1C; padding: 0 2px; }
+.more-btn { align-self: flex-start; min-height: 44px; margin-top: 12px; padding: 0; border: 0; background: transparent; color: var(--link-text); font-size: 15px; font-weight: 700; cursor: pointer; text-align: left; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
+.chip { min-height: 44px; padding: 0 12px; border: 2px solid var(--grass); background: transparent; color: var(--ink); font-size: 15px; font-weight: 700; cursor: pointer; text-align: left; }
+.chip:hover { background: #E3EDD3; }
+.attrib { margin-top: auto; padding-top: 16px; font-size: 12px; color: var(--ink-soft); }
+.attrib a { color: var(--ink-soft); }
+
+/* Play screen: phone dock */
+.dock { display: flex; gap: 12px; padding: 16px 16px 24px; }
+.find-btn { flex: 1; height: 52px; display: flex; align-items: center; gap: 12px; padding: 0 16px; border: 2px solid var(--outline); background: transparent; color: var(--mist-light); font-size: 16px; font-weight: 700; text-align: left; cursor: pointer; }
+.bag-btn { width: 52px; height: 52px; border: 2px solid var(--outline); padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.find-btn:hover, .bag-btn:hover { border-color: var(--mist); }
+
+/* Desktop side panel (hidden on phones) */
+.aside { display: none; }
+.panel { display: flex; flex-direction: column; gap: 10px; }
+.panel-title { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--paper); }
+.input { width: 100%; height: 48px; padding: 0 12px; border: 2px solid var(--ink); border-radius: 0; background: var(--paper-bright); color: var(--ink); font-size: 17px; font-weight: 700; }
+.results { display: flex; flex-direction: column; gap: 8px; }
+.result { min-height: 44px; padding: 8px 12px; border: 2px solid var(--paper-line); background: var(--paper-bright); color: var(--ink); font-size: 16px; font-weight: 700; text-align: left; cursor: pointer; }
+.result:hover { border-color: var(--grass); }
+.empty { font-size: 15px; color: var(--ink-soft); }
+.aside .empty { color: var(--mist); }
+.bag-item { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 8px 14px; border: 2px solid var(--paper-line); background: var(--paper-bright); color: var(--ink); text-align: left; cursor: pointer; width: 100%; }
+.bag-item .txt { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.bag-item .name { font-size: 17px; font-weight: 700; }
+.bag-item .sub { font-size: 14px; color: var(--ink-soft); }
+.bag-item .meta { font-family: var(--font-display); font-size: 15px; font-weight: 700; }
+.bag-item[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+.aside .bag-item { background: transparent; border-color: var(--outline); color: var(--paper); }
+.aside .bag-item .sub { color: var(--mist); }
+.shot-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.shot { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 0; border-bottom: 2px dashed var(--paper-line); }
+.shot .n { width: 24px; flex: none; font-family: var(--font-display); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.shot .t { flex: 1; min-width: 0; font-size: 16px; line-height: 1.25; }
+.lie { flex: none; padding: 4px 6px 3px; font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+.lie.fairway { background: var(--fairway); color: var(--ink); }
+.lie.rough { background: var(--grass); color: #FFFFFF; }
+.lie.bunker { background: var(--sand); color: var(--ink); }
+.lie.holed { background: var(--ink); color: var(--paper); }
+.aside .shot { border-bottom-color: #2F5A46; }
+
+/* Sheets (phone) */
+.backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(8, 20, 14, 0.62); display: flex; flex-direction: column; justify-content: flex-end; }
+.sheet { width: 100%; max-width: 560px; margin: 0 auto; max-height: 78%; display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 28px; background: var(--paper); color: var(--ink); box-shadow: 0 -4px 0 0 var(--shadow); }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding-left: 4px; }
+.sheet-head h2 { margin: 0; font-family: var(--font-display); font-size: 24px; font-weight: 700; }
+.sheet .icon-btn { color: var(--ink); }
+.sheet label { display: flex; flex-direction: column; gap: 6px; padding: 0 4px; font-size: 14px; font-weight: 700; color: var(--ink-soft); }
+.sheet .results { overflow-y: auto; padding: 0 4px; }
+
+/* Holed overlay */
+.holed { position: fixed; inset: 0; z-index: 30; background: var(--night); overflow-y: auto; animation: fadeIn 200ms steps(2, end) both; }
+.holed-inner { position: relative; width: 100%; max-width: 520px; min-height: 100%; margin: 0 auto; padding: 16px 24px 32px; display: flex; flex-direction: column; align-items: center; }
+.confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.confetti span { position: absolute; width: 6px; height: 6px; animation: confettiFall 1400ms steps(12, end) both; }
+.holed-head { align-self: stretch; display: flex; align-items: center; justify-content: space-between; margin-right: -12px; }
+.holed-head span { font-size: 15px; font-weight: 700; color: var(--mist); }
+.cup { position: relative; width: 90px; height: 70px; margin-top: 56px; }
+.cup .dropball { position: absolute; left: 40px; top: 47px; width: 10px; height: 10px; background: #FFFFFF; box-shadow: 0 0 0 2px var(--ink); animation: ballDrop 520ms steps(6, end) 100ms both; }
+.result-word { margin: 24px 0 0; font-family: var(--font-display); font-size: clamp(48px, 14vw, 60px); font-weight: 700; line-height: 1; color: var(--sand); text-shadow: 4px 4px 0 var(--shadow); letter-spacing: 2px; text-align: center; }
+.result-sub { margin: 16px 0 0; font-size: 17px; color: var(--mist-light); font-variant-numeric: tabular-nums; }
+.squares { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 28px; }
+.squares span { width: 24px; height: 24px; }
+.sq-fairway { background: var(--fairway); }
+.sq-rough { background: var(--grass); box-shadow: inset 0 0 0 3px var(--outline); }
+.sq-bunker { background: var(--sand); }
+.sq-holed { background: var(--flag); }
+.holed-note { margin: 20px 0 0; max-width: 320px; text-align: center; font-size: 15px; line-height: 1.5; color: var(--mist-light); }
+.scorecard { align-self: stretch; margin-top: 24px; padding: 4px 16px; background: var(--paper); color: var(--ink); box-shadow: var(--frame); }
+.holed-actions { align-self: stretch; display: flex; flex-direction: column; gap: 12px; margin-top: auto; padding-top: 32px; }
+.two-up { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+/* Animations */
+@keyframes pop { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes slideIn { 0% { transform: translateY(8px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 50% { transform: translateX(3px); } 75% { transform: translateX(-3px); } }
+@keyframes ballDrop { 0% { transform: translateY(-64px); } 70% { transform: translateY(0); } 85% { transform: translateY(-6px); } 100% { transform: translateY(0); } }
+@keyframes confettiFall { 0% { transform: translateY(-30px); opacity: 1; } 85% { opacity: 1; } 100% { transform: translateY(340px); opacity: 0; } }
+@keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+.anim-pop { animation: pop 420ms steps(4, end) both; }
+.anim-slide { animation: slideIn 180ms steps(3, end) both; }
+.anim-shake { animation: shake 240ms steps(4, end) both; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  #app { max-width: 1080px; padding: 0 24px; }
+  .tee { width: 100%; max-width: 560px; margin: 0 auto; }
+  .play { display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: auto minmax(0, 1fr); }
+  .course-head { grid-column: 1 / -1; padding: 16px 24px 12px; }
+  .play-body { grid-column: 1; grid-row: 2; min-height: 0; }
+  .card { margin: 24px 20px 28px 4px; padding: 28px 36px; }
+  .card h1 { font-size: 34px; }
+  .dock { display: none; }
+  .aside { display: flex; flex-direction: column; gap: 28px; grid-column: 2; grid-row: 2; min-height: 0; overflow-y: auto; padding: 24px 4px 28px 12px; }
+  .phone-only { display: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Tee screen -->
+  <section class="screen tee" id="screen-tee" aria-labelledby="tee-title">
+    <div class="topbar">
+      <span class="wordmark">WIKI GOLF</span>
+      <button class="icon-btn" type="button" id="how-btn" aria-label="How to play" style="font-family: var(--font-display); font-size: 22px; font-weight: 700;">?</button>
+    </div>
+    <div class="tee-art">
+      <svg class="px" viewBox="0 0 90 57.6" role="img" aria-label="Pixel map of the hole: tee at bottom left, a long fairway past two bunkers, flag on the green at top right">
+        <defs><pattern id="rough" width="4" height="4" patternUnits="userSpaceOnUse"><rect x="0" y="0" width="1" height="1" fill="#286B40"/><rect x="2" y="2" width="1" height="1" fill="#286B40"/></pattern></defs>
+        <rect x="0" y="0" width="90" height="13" fill="#8CCFE0"/><rect x="0" y="13" width="90" height="10" fill="#B9E4E4"/>
+        <rect x="10" y="6" width="8" height="2" fill="#FFFFFF"/><rect x="8" y="8" width="13" height="2" fill="#FFFFFF"/>
+        <rect x="58" y="9" width="6" height="2" fill="#FFFFFF"/><rect x="55" y="11" width="12" height="2" fill="#FFFFFF"/>
+        <rect x="0" y="22" width="90" height="5" fill="#4E9C6A"/><rect x="4" y="19" width="12" height="3" fill="#4E9C6A"/><rect x="7" y="17" width="6" height="2" fill="#4E9C6A"/>
+        <rect x="38" y="20" width="18" height="2" fill="#4E9C6A"/><rect x="43" y="18" width="8" height="2" fill="#4E9C6A"/>
+        <rect x="68" y="19" width="16" height="3" fill="#4E9C6A"/><rect x="72" y="17" width="7" height="2" fill="#4E9C6A"/>
+        <rect x="0" y="27" width="90" height="31" fill="#2F7A4A"/><rect x="0" y="27" width="90" height="31" fill="url(#rough)"/>
+        <rect x="2" y="48" width="20" height="7" fill="#86C98A"/><rect x="10" y="44" width="22" height="4" fill="#86C98A"/>
+        <rect x="20" y="40" width="22" height="4" fill="#86C98A"/><rect x="32" y="36" width="22" height="4" fill="#86C98A"/>
+        <rect x="44" y="33" width="20" height="3" fill="#86C98A"/>
+        <rect x="62" y="29" width="20" height="7" fill="#B4E08A"/><rect x="64" y="28" width="16" height="1" fill="#B4E08A"/><rect x="64" y="36" width="16" height="1" fill="#B4E08A"/>
+        <rect x="30" y="46" width="8" height="3" fill="#E9C977"/><rect x="29" y="47" width="10" height="1" fill="#E9C977"/>
+        <rect x="52" y="39" width="7" height="3" fill="#E9C977"/><rect x="51" y="40" width="9" height="1" fill="#E9C977"/>
+        <rect x="4" y="50" width="7" height="3" fill="#B4E08A"/><rect x="6" y="49" width="2" height="2" fill="#FFFFFF"/>
+        <rect x="73" y="32" width="3" height="1" fill="#142019"/><rect x="74" y="20" width="1" height="12" fill="#142019"/>
+        <rect x="75" y="20" width="6" height="1" fill="#E8452C"/><rect x="75" y="21" width="5" height="1" fill="#E8452C"/>
+        <rect x="75" y="22" width="3" height="1" fill="#E8452C"/><rect x="75" y="23" width="1" height="1" fill="#E8452C"/>
+      </svg>
+    </div>
+    <div class="tee-info">
+      <span class="eyebrow">HOLE 128 · SUNDAY LONG HOLE</span>
+      <h1 class="route-title" id="tee-title">Octopus<br><span class="to">to</span> Apollo 11</h1>
+      <div class="par-row">
+        <span class="par-chip">PAR 6</span>
+        <span class="muted">Pick up at 12 strokes</span>
+      </div>
+      <p class="played-note" id="played-note" hidden></p>
+    </div>
+    <div class="tee-actions">
+      <button class="btn-primary" type="button" id="tee-primary">TEE OFF</button>
+      <button class="btn-ghost" type="button" id="tee-practice" hidden>Play a practice round</button>
+      <div class="tee-foot"><span id="streak-text">9-day streak</span><span aria-hidden="true">·</span><button class="btn-text" type="button" id="reset-demo">Reset demo</button></div>
+    </div>
+  </section>
+
+  <!-- Play screen -->
+  <section class="screen play" id="screen-play" hidden aria-label="Playing hole 128">
+    <header class="course-head">
+      <div class="course-meta">
+        <span class="left"><span>Hole 128 · Par 6</span><span class="practice-chip" id="practice-chip" hidden>PRACTICE</span></span>
+        <span id="stroke-text">Stroke 1</span>
+      </div>
+      <div class="course" role="img" id="course" aria-label="Your ball is 5 links from the pin at Apollo 11">
+        <div class="band"></div>
+        <div class="greenpatch"></div>
+        <div class="teebox"></div>
+        <svg class="px flag" width="18" height="36" viewBox="0 0 9 18" aria-hidden="true"><rect x="1" y="0" width="1" height="17" fill="#142019"/><rect x="2" y="0" width="6" height="1" fill="#E8452C"/><rect x="2" y="1" width="5" height="1" fill="#E8452C"/><rect x="2" y="2" width="3" height="1" fill="#E8452C"/><rect x="2" y="3" width="1" height="1" fill="#E8452C"/><rect x="0" y="17" width="3" height="1" fill="#142019"/></svg>
+        <svg class="px ball" width="16" height="16" viewBox="0 0 8 8" aria-hidden="true"><rect x="2" y="0" width="4" height="1" fill="#142019"/><rect x="1" y="1" width="6" height="6" fill="#142019"/><rect x="0" y="2" width="8" height="4" fill="#142019"/><rect x="2" y="1" width="4" height="6" fill="#FFFFFF"/><rect x="1" y="2" width="6" height="4" fill="#FFFFFF"/><rect x="5" y="2" width="1" height="1" fill="#C9C9C9"/></svg>
+        <div class="tag-wrap"><span class="tag" id="tag" role="status" aria-live="polite">TAP A LINK</span></div>
+        <span class="end">Octopus</span>
+        <span class="end right">Apollo 11</span>
+      </div>
+    </header>
+
+    <div class="play-body">
+      <article class="card" id="card" aria-live="polite"></article>
+      <div class="dock">
+        <button class="find-btn" type="button" id="open-find">
+          <svg class="px" width="18" height="18" viewBox="0 0 10 10" aria-hidden="true" fill="#DCEBD8"><rect x="2" y="0" width="4" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="4"/><rect x="7" y="2" width="1" height="4"/><rect x="1" y="6" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="2" y="7" width="4" height="1"/><rect x="7" y="7" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/></svg>
+          Find a link
+        </button>
+        <button class="bag-btn" type="button" id="open-bag" aria-label="Open your bag: mulligan and caddie">
+          <svg class="px" width="24" height="24" viewBox="0 0 12 12" aria-hidden="true" fill="#DCEBD8"><rect x="3" y="0" width="1" height="4"/><rect x="5" y="1" width="1" height="3"/><rect x="7" y="0" width="1" height="4"/><rect x="2" y="0" width="2" height="1"/><rect x="7" y="0" width="2" height="1"/><rect x="5" y="1" width="2" height="1"/><rect x="2" y="4" width="7" height="1"/><rect x="2" y="5" width="1" height="6"/><rect x="8" y="5" width="1" height="6"/><rect x="3" y="11" width="5" height="1"/><rect x="3" y="7" width="5" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="10" y="6" width="1" height="3"/><rect x="9" y="9" width="1" height="1"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <aside class="aside" aria-label="Tools">
+      <section class="panel">
+        <label class="panel-title" for="find-aside">Find a link</label>
+        <input class="input" id="find-aside" type="search" placeholder="Type part of a name" autocomplete="off">
+        <div class="results" id="results-aside"></div>
+      </section>
+      <section class="panel">
+        <h2 class="panel-title">Your bag</h2>
+        <div id="bag-aside" class="panel"></div>
+      </section>
+      <section class="panel">
+        <h2 class="panel-title">Shots</h2>
+        <ol class="shot-list" id="shots-aside"></ol>
+        <p class="empty" id="shots-empty">No shots yet. Tap a green link in the article.</p>
+      </section>
+    </aside>
+  </section>
+</div>
+
+<!-- Find sheet (phone) -->
+<div class="backdrop phone-only" id="find-sheet" hidden>
+  <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="find-title">
+    <div class="sheet-head"><h2 id="find-title">Find a link</h2><button class="icon-btn" type="button" data-close aria-label="Close">
+      <svg class="px" width="16" height="16" viewBox="0 0 8 8" aria-hidden="true" fill="#142019"><rect x="0" y="0" width="2" height="2"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="3" width="2" height="2"/><rect x="5" y="5" width="1" height="1"/><rect x="6" y="6" width="2" height="2"/><rect x="6" y="0" width="2" height="2"/><rect x="5" y="2" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="0" y="6" width="2" height="2"/></svg></button></div>
+    <label for="find-sheet-input"><span id="find-sheet-label">Links on this page</span>
+      <input class="input" id="find-sheet-input" type="search" placeholder="Type part of a name" autocomplete="off">
+    </label>
+    <div class="results" id="results-sheet"></div>
+  </section>
+</div>
+
+<!-- Bag sheet (phone) -->
+<div class="backdrop phone-only" id="bag-sheet" hidden>
+  <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="bag-title">
+    <div class="sheet-head"><h2 id="bag-title">Your bag</h2><button class="icon-btn" type="button" data-close aria-label="Close">
+      <svg class="px" width="16" height="16" viewBox="0 0 8 8" aria-hidden="true" fill="#142019"><rect x="0" y="0" width="2" height="2"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="3" width="2" height="2"/><rect x="5" y="5" width="1" height="1"/><rect x="6" y="6" width="2" height="2"/><rect x="6" y="0" width="2" height="2"/><rect x="5" y="2" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="0" y="6" width="2" height="2"/></svg></button></div>
+    <div id="bag-sheet-items" class="panel"></div>
+  </section>
+</div>
+
+<!-- How to play sheet -->
+<div class="backdrop" id="how-sheet" hidden style="display: flex;">
+  <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="how-title">
+    <div class="sheet-head"><h2 id="how-title">How to play</h2><button class="icon-btn" type="button" data-close aria-label="Close">
+      <svg class="px" width="16" height="16" viewBox="0 0 8 8" aria-hidden="true" fill="#142019"><rect x="0" y="0" width="2" height="2"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="3" width="2" height="2"/><rect x="5" y="5" width="1" height="1"/><rect x="6" y="6" width="2" height="2"/><rect x="6" y="0" width="2" height="2"/><rect x="5" y="2" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="0" y="6" width="2" height="2"/></svg></button></div>
+    <div style="padding: 0 4px; font-size: 16px; line-height: 1.55;">
+      <p style="margin: 0 0 10px;">Get from the start page to the target page by tapping links in each article. Every tap is one stroke.</p>
+      <p style="margin: 0 0 10px;"><strong>Fairway</strong> means you got one link closer, <strong>rough</strong> means no closer, and <strong>bunker</strong> means farther away.</p>
+      <p style="margin: 0;">Par is the shortest route plus one. Your bag holds one mulligan (undo a shot) and the caddie (a hint for one stroke).</p>
+    </div>
+  </section>
+</div>
+
+<!-- Finish overlay -->
+<div class="holed" id="holed" hidden>
+  <div class="holed-inner">
+    <div class="confetti" id="confetti" aria-hidden="true"></div>
+    <div class="holed-head"><span id="holed-label">Hole 128 · Par 6</span>
+      <button class="icon-btn" type="button" id="holed-close" aria-label="Back to the tee">
+        <svg class="px" width="18" height="18" viewBox="0 0 8 8" aria-hidden="true" fill="#A9C7B2"><rect x="0" y="0" width="2" height="2"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="3" width="2" height="2"/><rect x="5" y="5" width="1" height="1"/><rect x="6" y="6" width="2" height="2"/><rect x="6" y="0" width="2" height="2"/><rect x="5" y="2" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="0" y="6" width="2" height="2"/></svg>
+      </button>
+    </div>
+    <div class="cup" aria-hidden="true">
+      <svg class="px" width="90" height="70" viewBox="0 0 18 14"><rect x="1" y="11" width="16" height="3" fill="#B4E08A"/><rect x="0" y="12" width="18" height="1" fill="#B4E08A"/><rect x="7" y="11" width="4" height="1" fill="#142019"/><rect x="9" y="0" width="1" height="11" fill="#142019"/><rect x="10" y="0" width="6" height="1" fill="#E8452C"/><rect x="10" y="1" width="5" height="1" fill="#E8452C"/><rect x="10" y="2" width="3" height="1" fill="#E8452C"/><rect x="10" y="3" width="1" height="1" fill="#E8452C"/></svg>
+      <span class="dropball" id="dropball"></span>
+    </div>
+    <h2 class="result-word" id="result-word">PAR!</h2>
+    <p class="result-sub" id="result-sub"></p>
+    <div class="squares" id="squares" role="img"></div>
+    <p class="holed-note" id="holed-note"></p>
+    <section class="scorecard" id="scorecard" hidden aria-label="Scorecard"><ol class="shot-list" id="scorecard-list"></ol></section>
+    <div class="holed-actions">
+      <button class="btn-primary" type="button" id="share-btn">SHARE RESULT</button>
+      <div class="two-up">
+        <button class="btn-ghost" type="button" id="score-toggle" aria-expanded="false">Scorecard</button>
+        <button class="btn-ghost" type="button" id="again-btn">Practice again</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var HOLE = 128, PAR = 6, PICKUP = 12, START = "octopus", MAXD = 5;
+  var STORE_KEY = "wikigolf-mock-hole-128";
+
+  // Demo hole: short summaries written for this mock, linked into a small sample graph. dist = clicks to Apollo 11.
+  var PAGES = {
+    octopus: { title: "Octopus", desc: "Eight-limbed sea mollusc", dist: 5, segs: [
+      { t: "An octopus is a soft-bodied, eight-limbed mollusc. Like its relatives the " }, { l: "squid", s: "squid" },
+      { t: " and the " }, { l: "nautilus", s: "nautilus" }, { t: ", it belongs to the " }, { l: "cephalopod", s: "cephalopods" },
+      { t: ". Octopuses are known for their intelligence and for " }, { l: "camouflage", s: "camouflage" },
+      { t: ", changing colour and texture in a fraction of a second." } ] },
+    cephalopod: { title: "Cephalopod", desc: "Class of molluscs", dist: 5, segs: [
+      { t: "Cephalopods are molluscs with arms or tentacles around the head. The group includes the " }, { l: "octopus", s: "octopus" },
+      { t: ", the " }, { l: "squid", s: "squid" }, { t: " and the shelled " }, { l: "nautilus", s: "nautilus" },
+      { t: ". Many can change colour in an instant using special skin cells." } ] },
+    squid: { title: "Squid", desc: "Long-bodied cephalopods", dist: 6, segs: [
+      { t: "Squid have long bodies, eight arms and two longer tentacles. Most are small, but the " }, { l: "giantsquid", s: "giant squid" },
+      { t: " can reach about 12 metres. Like other " }, { l: "cephalopod", s: "cephalopods" }, { t: ", they squirt ink to escape predators." } ] },
+    nautilus: { title: "Nautilus", desc: "Shelled cephalopod", dist: 4, segs: [
+      { t: "The nautilus is a " }, { l: "cephalopod", s: "cephalopod" },
+      { t: " that lives inside a coiled, chambered shell, a design little changed for millions of years. Its name was later given to Captain Nemo’s submarine in " },
+      { l: "leagues", s: "Twenty Thousand Leagues Under the Seas" }, { t: ", the novel by " }, { l: "verne", s: "Jules Verne" }, { t: "." } ] },
+    camouflage: { title: "Camouflage", desc: "Hiding by blending in", dist: 6, segs: [
+      { t: "Camouflage is the use of colour, pattern or texture to stay hidden. Some animals, like the " }, { l: "octopus", s: "octopus" },
+      { t: " and other " }, { l: "cephalopod", s: "cephalopods" }, { t: ", can change their camouflage in an instant." } ] },
+    giantsquid: { title: "Giant squid", desc: "Deep-ocean squid", dist: 5, segs: [
+      { t: "The giant squid is a deep-ocean " }, { l: "squid", s: "squid" },
+      { t: " that can grow to about 12 metres, with some of the largest eyes of any animal. It was first photographed alive in the wild in 2004. One attacks the submarine in " },
+      { l: "leagues", s: "Twenty Thousand Leagues Under the Seas" }, { t: "." } ] },
+    leagues: { title: "Twenty Thousand Leagues Under the Seas", desc: "1870 novel by Jules Verne", dist: 4, segs: [
+      { t: "An adventure novel by " }, { l: "verne", s: "Jules Verne" },
+      { t: ". Professor Aronnax travels the oceans aboard Captain Nemo’s submarine, the Nautilus, surviving storms, polar ice and an attack by a " },
+      { l: "giantsquid", s: "giant squid" }, { t: "." } ] },
+    verne: { title: "Jules Verne", desc: "French novelist, 1828–1905", dist: 3, segs: [
+      { t: "Jules Verne was a French novelist whose adventure stories imagined technology far ahead of his time. His books include " },
+      { l: "leagues", s: "Twenty Thousand Leagues Under the Seas" }, { t: " and " }, { l: "earthmoon", s: "From the Earth to the Moon" },
+      { t: ", and he is often called one of the fathers of " }, { l: "scifi", s: "science fiction" }, { t: "." } ] },
+    scifi: { title: "Science fiction", desc: "Genre of speculative fiction", dist: 2, segs: [
+      { t: "Science fiction imagines worlds shaped by science and technology, from space travel to time machines. Early writers such as " },
+      { l: "verne", s: "Jules Verne" }, { t: " imagined voyages to the " }, { l: "moon", s: "Moon" }, { t: " a century before anyone made one." } ] },
+    earthmoon: { title: "From the Earth to the Moon", desc: "1865 novel by Jules Verne", dist: 2, segs: [
+      { t: "In this novel by " }, { l: "verne", s: "Jules Verne" },
+      { t: ", members of a Baltimore gun club build an enormous cannon to fire a crewed projectile at the " }, { l: "moon", s: "Moon" },
+      { t: ", launching from Florida." } ] },
+    moon: { title: "Moon", desc: "Earth’s natural satellite", dist: 1, segs: [
+      { t: "The Moon is Earth’s only natural satellite. People first walked on it during " }, { l: "apollo", s: "Apollo 11" },
+      { t: " in July 1969, a voyage long imagined in " }, { l: "scifi", s: "science fiction" }, { t: "." } ] },
+    apollo: { title: "Apollo 11", desc: "First crewed Moon landing, 1969", dist: 0, segs: [
+      { t: "Apollo 11 was the 1969 mission that first landed people on the Moon." } ] }
+  };
+
+  var TAG_TEXT = { fairway: "FAIRWAY!", rough: "ROUGH", bunker: "BUNKER!", mulligan: "MULLIGAN", caddie: "CADDIE +1" };
+  var LIE_WORD = { fairway: "FAIRWAY", rough: "ROUGH", bunker: "BUNKER", holed: "HOLED" };
+  var SHARE_MARK = { fairway: "🟩", rough: "🟫", bunker: "🟨", holed: "⛳" };
+  var CONFETTI = [[30, 20, "#E8452C", 0], [70, 60, "#E9C977", 120], [110, 10, "#8CCFE0", 240], [150, 40, "#F4EBD0", 60],
+    [190, 0, "#86C98A", 300], [230, 30, "#E8452C", 180], [270, 12, "#E9C977", 360], [310, 50, "#8CCFE0", 90],
+    [350, 24, "#86C98A", 210], [50, 90, "#F4EBD0", 420], [200, 80, "#E9C977", 480], [330, 100, "#E8452C", 540]];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var store = {
+    get: function () { try { return JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) { return null; } },
+    set: function (v) { try { localStorage.setItem(STORE_KEY, JSON.stringify(v)); } catch (e) { /* storage unavailable: demo still works */ } },
+    clear: function () { try { localStorage.removeItem(STORE_KEY); } catch (e) { /* ignore */ } }
+  };
+  var memoryResult = null; // fallback when storage is blocked
+
+  var S = null;
+  var tagTimer = 0;
+
+  function fresh(practice) {
+    return { page: START, shots: [], penalties: 0, mulligan: 1, hint: null, event: null, practice: practice,
+      lastLie: null, t0: 0, t1: 0, done: false, moreOpen: false, query: "" };
+  }
+
+  function linksOf(page) {
+    var seen = {}, out = [];
+    page.segs.forEach(function (g) { if (g.l && !seen[g.l]) { seen[g.l] = true; out.push(g.l); } });
+    return out;
+  }
+  function lieFor(from, to) { return to === 0 ? "holed" : to < from ? "fairway" : to === from ? "rough" : "bunker"; }
+  function strokes() { return S.shots.length + S.penalties; }
+  function restart(el, cls) { el.classList.remove("anim-pop", "anim-slide", "anim-shake"); void el.offsetWidth; el.classList.add(cls); }
+  function savedResult() { return store.get() || memoryResult; }
+
+  /* ---------- Screens ---------- */
+  function show(name) {
+    $("screen-tee").hidden = name !== "tee";
+    $("screen-play").hidden = name !== "play";
+    $("holed").hidden = name !== "holed";
+    closeSheets();
+  }
+
+  function renderTee() {
+    var r = savedResult();
+    $("played-note").hidden = !r;
+    $("tee-practice").hidden = !r;
+    $("tee-primary").textContent = r ? "SEE YOUR RESULT" : "TEE OFF";
+    $("streak-text").textContent = (r ? 10 : 9) + "-day streak (example)";
+    if (r) $("played-note").textContent = "You finished today’s hole: " + r.word + " in " + r.strokes + ". Come back tomorrow for hole " + (HOLE + 1) + ", or play a practice round.";
+  }
+
+  function startRound(practice) {
+    clearTimeout(tagTimer);
+    S = fresh(practice);
+    $("practice-chip").hidden = !practice;
+    show("play");
+    renderPlay(true);
+  }
+
+  /* ---------- Playing ---------- */
+  function flash(kind) {
+    clearTimeout(tagTimer);
+    S.event = kind;
+    tagTimer = setTimeout(function () { if (!S || S.done) return; S.event = null; renderTag(false); }, 2200);
+  }
+
+  function play(key) {
+    if (!S || S.done) return;
+    var lie = lieFor(PAGES[S.page].dist, PAGES[key].dist);
+    S.shots.push({ key: key, lie: lie });
+    S.t0 = S.t0 || Date.now();
+    S.page = key; S.hint = null; S.lastLie = lie; S.moreOpen = false; S.query = "";
+    flash(lie);
+    closeSheets();
+    if (lie === "holed" || strokes() >= PICKUP) { finish(); return; }
+    renderPlay(true);
+  }
+
+  function mulligan() {
+    if (S.done || S.mulligan < 1 || S.shots.length === 0) return;
+    S.shots.pop();
+    S.page = S.shots.length ? S.shots[S.shots.length - 1].key : START;
+    S.mulligan = 0; S.hint = null; S.lastLie = null;
+    flash("mulligan");
+    closeSheets();
+    renderPlay(true);
+  }
+
+  function caddie() {
+    if (S.done) return;
+    var cur = PAGES[S.page];
+    S.hint = linksOf(cur).filter(function (k) { return PAGES[k].dist < cur.dist; })[0] || null;
+    S.penalties += 1; S.lastLie = null;
+    S.t0 = S.t0 || Date.now();
+    flash("caddie");
+    closeSheets();
+    if (strokes() >= PICKUP) { finish(); return; }
+    renderPlay(false);
+  }
+
+  function renderTag(animate) {
+    var d = PAGES[S.page].dist;
+    var kind = S.event || (strokes() === 0 ? "start" : "dist");
+    var text = kind === "start" ? "TAP A LINK" : kind === "dist" ? d + " TO PIN" : TAG_TEXT[kind];
+    var tag = $("tag");
+    tag.textContent = text;
+    tag.setAttribute("data-kind", kind);
+    if (animate) restart(tag, "anim-pop");
+  }
+
+  function renderPlay(newPage) {
+    var cur = PAGES[S.page], d = cur.dist;
+    var ball = Math.max(0, 2 + (MAXD - d) / MAXD * 86);
+    var course = $("course");
+    course.style.setProperty("--ball", ball.toFixed(1) + "%");
+    course.style.setProperty("--tag", Math.min(76, Math.max(14, ball)).toFixed(1) + "%");
+    course.setAttribute("aria-label", "Your ball is " + d + " links from the pin at Apollo 11");
+    $("stroke-text").textContent = "Stroke " + (strokes() + 1);
+    renderTag(true);
+    renderCard(newPage);
+    renderTools();
+  }
+
+  function renderCard(newPage) {
+    var cur = PAGES[S.page], card = $("card");
+    card.textContent = "";
+    var h = document.createElement("h1"); h.textContent = cur.title; card.appendChild(h);
+    var desc = document.createElement("p"); desc.className = "desc"; desc.textContent = cur.desc; card.appendChild(desc);
+    var body = document.createElement("p"); body.className = "body";
+    // Built from text and link nodes only: no outside HTML is ever inserted.
+    cur.segs.forEach(function (g) {
+      if (!g.l) { body.appendChild(document.createTextNode(g.t)); return; }
+      var a = document.createElement("a");
+      a.href = "#"; a.className = "wlink" + (g.l === S.hint ? " hint" : ""); a.textContent = g.s; a.dataset.key = g.l;
+      body.appendChild(a);
+    });
+    card.appendChild(body);
+
+    var keys = linksOf(cur);
+    var more = document.createElement("button");
+    more.type = "button"; more.className = "more-btn"; more.setAttribute("aria-expanded", String(S.moreOpen));
+    more.textContent = S.moreOpen ? "− Hide the link list" : "+ All " + keys.length + " links on this page";
+    more.addEventListener("click", function () { S.moreOpen = !S.moreOpen; renderCard(false); });
+    card.appendChild(more);
+    if (S.moreOpen) {
+      var chips = document.createElement("div"); chips.className = "chips";
+      keys.forEach(function (k) {
+        var b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = PAGES[k].title;
+        b.addEventListener("click", function () { play(k); });
+        chips.appendChild(b);
+      });
+      card.appendChild(chips);
+    }
+    var at = document.createElement("p"); at.className = "attrib";
+    at.textContent = "Text: Wikipedia, CC BY-SA 4.0 · short demo summary";
+    card.appendChild(at);
+
+    if (newPage) { card.scrollTop = 0; restart(card, S.lastLie === "bunker" ? "anim-shake" : "anim-slide"); }
+  }
+
+  function resultButtons(container, query) {
+    container.textContent = "";
+    var q = (query || "").trim().toLowerCase();
+    var keys = linksOf(PAGES[S.page]).filter(function (k) { return !q || PAGES[k].title.toLowerCase().indexOf(q) !== -1; });
+    if (!keys.length) {
+      var p = document.createElement("p"); p.className = "empty"; p.textContent = "No links on this page match."; container.appendChild(p);
+      return;
+    }
+    keys.forEach(function (k) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "result"; b.textContent = PAGES[k].title;
+      b.addEventListener("click", function () { play(k); });
+      container.appendChild(b);
+    });
+  }
+
+  function bagItems(container) {
+    container.textContent = "";
+    var canMull = S.mulligan > 0 && S.shots.length > 0;
+    var note = S.mulligan < 1 ? "Used" : S.shots.length === 0 ? "No shot yet" : "1 left";
+    container.appendChild(bagButton("Mulligan", "Undo your last shot", note, !canMull, mulligan,
+      '<rect x="2" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="0" y="3" width="7" height="1"/><rect x="1" y="4" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="7" y="4" width="1" height="1"/><rect x="8" y="5" width="1" height="2"/><rect x="7" y="7" width="1" height="1"/><rect x="3" y="8" width="4" height="1"/>'));
+    container.appendChild(bagButton("Ask the caddie", "Highlights one link that gets you closer", "+1", false, caddie,
+      '<rect x="3" y="0" width="4" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="3"/><rect x="8" y="2" width="1" height="3"/><rect x="2" y="5" width="1" height="1"/><rect x="7" y="5" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="3" y="7" width="4" height="1"/><rect x="3" y="9" width="4" height="1"/>'));
+  }
+
+  function bagButton(name, sub, meta, disabled, action, iconRects) {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "bag-item";
+    if (disabled) b.setAttribute("aria-disabled", "true");
+    // Icon markup is a fixed string defined in this file, not outside content.
+    b.innerHTML = '<svg class="px" width="22" height="22" viewBox="0 0 10 10" aria-hidden="true" fill="currentColor">' + iconRects + "</svg>";
+    var txt = document.createElement("span"); txt.className = "txt";
+    var n = document.createElement("span"); n.className = "name"; n.textContent = name;
+    var s = document.createElement("span"); s.className = "sub"; s.textContent = sub;
+    txt.appendChild(n); txt.appendChild(s);
+    var m = document.createElement("span"); m.className = "meta"; m.textContent = meta;
+    b.appendChild(txt); b.appendChild(m);
+    b.addEventListener("click", function () { if (!disabled) action(); });
+    return b;
+  }
+
+  function shotRows(list, shots) {
+    list.textContent = "";
+    shots.forEach(function (sh, i) {
+      var li = document.createElement("li"); li.className = "shot";
+      var n = document.createElement("span"); n.className = "n"; n.textContent = String(i + 1);
+      var t = document.createElement("span"); t.className = "t"; t.textContent = PAGES[sh.key].title;
+      var lie = document.createElement("span"); lie.className = "lie " + sh.lie; lie.textContent = LIE_WORD[sh.lie];
+      li.appendChild(n); li.appendChild(t); li.appendChild(lie);
+      list.appendChild(li);
+    });
+  }
+
+  function renderTools() {
+    resultButtons($("results-aside"), $("find-aside").value);
+    bagItems($("bag-aside"));
+    shotRows($("shots-aside"), S.shots);
+    $("shots-empty").hidden = S.shots.length > 0;
+    if (!$("find-sheet").hidden) resultButtons($("results-sheet"), $("find-sheet-input").value);
+    if (!$("bag-sheet").hidden) bagItems($("bag-sheet-items"));
+  }
+
+  /* ---------- Sheets ---------- */
+  function openSheet(id) {
+    closeSheets();
+    var el = $(id); el.hidden = false; el.style.display = "flex";
+    if (id === "find-sheet") {
+      $("find-sheet-label").textContent = "Links on " + PAGES[S.page].title;
+      $("find-sheet-input").value = "";
+      resultButtons($("results-sheet"), "");
+      $("find-sheet-input").focus();
+    }
+    if (id === "bag-sheet") bagItems($("bag-sheet-items"));
+    var close = el.querySelector("[data-close]"); if (id !== "find-sheet" && close) close.focus();
+  }
+  function closeSheets() {
+    ["find-sheet", "bag-sheet", "how-sheet"].forEach(function (id) { var el = $(id); el.hidden = true; el.style.display = ""; });
+  }
+
+  /* ---------- Finish ---------- */
+  function wordFor(holed, n) {
+    if (!holed) return "PICKED UP";
+    var diff = n - PAR;
+    return diff <= -3 ? "ALBATROSS!" : diff === -2 ? "EAGLE!" : diff === -1 ? "BIRDIE!" : diff === 0 ? "PAR!"
+      : diff === 1 ? "BOGEY" : diff === 2 ? "DOUBLE BOGEY" : "+" + diff;
+  }
+
+  function finish() {
+    clearTimeout(tagTimer);
+    S.done = true; S.t1 = Date.now();
+    var holed = S.shots.length > 0 && S.shots[S.shots.length - 1].lie === "holed";
+    var secs = Math.max(0, Math.round((S.t1 - (S.t0 || S.t1)) / 1000));
+    var result = { word: wordFor(holed, strokes()), strokes: strokes(), time: Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0"),
+      shots: S.shots.slice(), practice: S.practice };
+    if (!S.practice && !savedResult()) { store.set(result); memoryResult = result; }
+    showResult(result, true);
+  }
+
+  function showResult(r, celebrate) {
+    show("holed");
+    $("holed-label").textContent = "Hole 128 · Par 6" + (r.practice ? " · Practice" : "");
+    $("result-word").textContent = r.word;
+    $("result-sub").textContent = r.strokes + " strokes on a par " + PAR + " · " + r.time;
+    var sq = $("squares"); sq.textContent = "";
+    r.shots.forEach(function (sh) { var s = document.createElement("span"); s.className = "sq-" + sh.lie; sq.appendChild(s); });
+    sq.setAttribute("aria-label", "Your round: " + r.shots.map(function (sh) { return LIE_WORD[sh.lie].toLowerCase(); }).join(", "));
+    var nautilus = r.shots.some(function (sh) { return sh.key === "nautilus"; });
+    $("holed-note").textContent = nautilus ? "You found the Nautilus shortcut. In the real game this line shows how rare your route was." :
+      "In the real game this line shows how rare your route was compared with everyone else today.";
+    shotRows($("scorecard-list"), r.shots);
+    $("scorecard").hidden = true; $("score-toggle").textContent = "Scorecard"; $("score-toggle").setAttribute("aria-expanded", "false");
+    $("share-btn").textContent = "SHARE RESULT";
+    $("share-btn").onclick = function () { share(r); };
+
+    var conf = $("confetti"); conf.textContent = "";
+    if (celebrate) {
+      CONFETTI.forEach(function (c) {
+        var s = document.createElement("span");
+        s.style.left = c[0] + "px"; s.style.top = c[1] + "px"; s.style.background = c[2]; s.style.animationDelay = c[3] + "ms";
+        conf.appendChild(s);
+      });
+      var ball = $("dropball"); ball.style.animation = "none"; void ball.offsetWidth; ball.style.animation = "";
+    }
+    $("share-btn").focus();
+  }
+
+  function share(r) {
+    var text = "Wiki Golf " + HOLE + " · " + r.word + " (" + r.strokes + " on a par " + PAR + ")\n" +
+      r.shots.map(function (sh) { return SHARE_MARK[sh.lie]; }).join("");
+    var btn = $("share-btn");
+    try {
+      navigator.clipboard.writeText(text).then(function () { btn.textContent = "COPIED!"; },
+        function () { btn.textContent = "COPY BLOCKED HERE"; });
+    } catch (e) { btn.textContent = "COPY BLOCKED HERE"; }
+  }
+
+  /* ---------- Wiring ---------- */
+  $("tee-primary").addEventListener("click", function () {
+    var r = savedResult();
+    if (r) showResult(r, false); else startRound(false);
+  });
+  $("tee-practice").addEventListener("click", function () { startRound(true); });
+  $("reset-demo").addEventListener("click", function () { store.clear(); memoryResult = null; renderTee(); });
+  $("how-btn").addEventListener("click", function () { openSheet("how-sheet"); });
+  $("open-find").addEventListener("click", function () { openSheet("find-sheet"); });
+  $("open-bag").addEventListener("click", function () { openSheet("bag-sheet"); });
+  $("find-sheet-input").addEventListener("input", function (e) { resultButtons($("results-sheet"), e.target.value); });
+  $("find-aside").addEventListener("input", function (e) { resultButtons($("results-aside"), e.target.value); });
+  $("card").addEventListener("click", function (e) {
+    var a = e.target.closest("a.wlink");
+    if (a) { e.preventDefault(); play(a.dataset.key); }
+  });
+  document.querySelectorAll("[data-close]").forEach(function (b) { b.addEventListener("click", closeSheets); });
+  document.querySelectorAll(".backdrop").forEach(function (bd) {
+    bd.addEventListener("click", function (e) { if (e.target === bd) closeSheets(); });
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeSheets(); });
+  $("score-toggle").addEventListener("click", function () {
+    var open = $("scorecard").hidden;
+    $("scorecard").hidden = !open;
+    this.textContent = open ? "Hide card" : "Scorecard";
+    this.setAttribute("aria-expanded", String(open));
+  });
+  $("again-btn").addEventListener("click", function () { startRound(true); });
+  $("holed-close").addEventListener("click", function () { renderTee(); show("tee"); });
+
+  closeSheets();
+  renderTee();
+  show("tee");
+})();
+</script>
+</body>
+</html>
