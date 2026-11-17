@@ -67,6 +67,28 @@ class R2:
         )
         self.puts += 1
 
+    def list_keys(self, prefix: str) -> list[str]:
+        keys: list[str] = []
+        token = None
+        while True:
+            kw = {"Bucket": self.bucket, "Prefix": prefix}
+            if token:
+                kw["ContinuationToken"] = token
+            resp = self.client.list_objects_v2(**kw)
+            keys += [o["Key"] for o in resp.get("Contents", [])]
+            if not resp.get("IsTruncated"):
+                return keys
+            token = resp.get("NextContinuationToken")
+
+    def copy(self, src: str, dst: str) -> None:
+        self.client.copy_object(
+            Bucket=self.bucket, Key=dst, CopySource={"Bucket": self.bucket, "Key": src}
+        )
+        self.puts += 1
+
+    def delete(self, key: str) -> None:
+        self.client.delete_object(Bucket=self.bucket, Key=key)
+
 
 def key_for(path: Path, out: Path) -> str:
     return path.relative_to(out).as_posix()

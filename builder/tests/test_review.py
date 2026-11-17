@@ -30,12 +30,22 @@ class FakeR2:
         self.objects[key] = __import__("pathlib").Path(path).read_bytes()
         self.puts += 1
 
+    def list_keys(self, prefix: str) -> list[str]:
+        return [k for k in self.objects if k.startswith(prefix)]
+
+    def copy(self, src: str, dst: str) -> None:
+        self.objects[dst] = self.objects[src]
+        self.puts += 1
+
+    def delete(self, key: str) -> None:
+        del self.objects[key]
+
 
 def seed(records: list[dict]) -> dict[str, bytes]:
     index = {"holes": []}
     objs: dict[str, bytes] = {}
     for r in records:
-        objs[f"holes/{r['date']}.json"] = json.dumps(r).encode()
+        objs[f"{r['wiki']}/holes/{r['date']}.json"] = json.dumps(r).encode()
         index["holes"].append(
             {
                 "date": r["date"],
@@ -47,7 +57,7 @@ def seed(records: list[dict]) -> dict[str, bytes]:
                 "target": r["target"]["title"],
             }
         )
-    objs["holes/index.json"] = json.dumps(index).encode()
+    objs["simplewiki/holes/index.json"] = json.dumps(index).encode()
     return objs
 
 
@@ -84,8 +94,8 @@ def test_show_prints_titles_and_links(fake, capsys):
 
 def test_approve_flips_status(fake):
     assert main(["approve", "--dates", "2026-12-07"]) == 0
-    assert json.loads(fake.objects["holes/2026-12-07.json"])["status"] == "approved"
-    index = json.loads(fake.objects["holes/index.json"])
+    assert json.loads(fake.objects["simplewiki/holes/2026-12-07.json"])["status"] == "approved"
+    index = json.loads(fake.objects["simplewiki/holes/index.json"])
     assert {e["date"]: e["status"] for e in index["holes"]}["2026-12-07"] == "approved"
 
 
@@ -122,3 +132,31 @@ def test_summary_never_contains_titles():
     for title in g.titles:
         pretty = title.replace("_", " ")
         assert pretty not in text, f"summary leaked a title: {pretty}"
+
+
+def test_relayout_moves_old_keys_under_wiki(monkeypatch):
+    """relayout copies old top-level objects under the wiki prefix and can delete originals."""
+    store = FakeR2(
+        {
+            "holes/2026-12-07.json": b"{}",
+            "holes/index.json": b'{"holes":[]}',
+            "distances/2026-12-07.bin": b"\x00\x01",
+            "snapshots/simplewiki-20261101/meta.json": b"{}",  # must not move
+            "simplewiki/holes/2026-12-08.json": b"{}",  # already migrated: skip
+        }
+    )
+    monkeypatch.setattr(upload_mod, "R2", lambda *a, **k: store)
+
+    # Dry run changes nothing.
+    assert main(["relayout", "--wiki", "simplewiki"]) == 0
+    assert "simplewiki/holes/2026-12-07.json" not in store.objects
+
+    assert main(["relayout", "--wiki", "simplewiki", "--apply", "--delete-old"]) == 0
+    assert store.objects["simplewiki/holes/2026-12-07.json"] == b"{}"
+    assert store.objects["simplewiki/holes/index.json"] == b'{"holes":[]}'
+    assert store.objects["simplewiki/distances/2026-12-07.bin"] == b"\x00\x01"
+    # Originals gone; snapshot and already-migrated object untouched.
+    assert "holes/2026-12-07.json" not in store.objects
+    assert "distances/2026-12-07.bin" not in store.objects
+    assert "snapshots/simplewiki-20261101/meta.json" in store.objects
+    assert store.objects["simplewiki/holes/2026-12-08.json"] == b"{}"

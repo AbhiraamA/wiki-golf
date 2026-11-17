@@ -104,9 +104,9 @@ wiki-golf/
 | `snapshots/{snap}/meta.json` | `{ snap, wiki, dumpDate, articleCount, linkCount, shardCount, builtAt }`. `snap` = `{wiki}-{dumpDate}`, e.g. `simplewiki-20261101`. |
 | `snapshots/{snap}/titles/{shard}.json` | Title index shard: `{ "Title_With_Underscores": [pageIdx, revId] }`. Redirect titles map to their target's entry. Shard = FNV-1a 32-bit hash of the title modulo `shardCount` (1024 for enwiki, 64 for simplewiki). |
 | `snapshots/{snap}/pages/{chunk}.json` | Decided in Phase 1: one file per page would be ~7 million R2 writes for enwiki (over the 1 million/month free limit), so pages are chunked. `chunk = floor(pageIdx / pageChunkSize)` (`pageChunkSize` = 1000, in `shared/config.json` and `meta.json`). Contents: a JSON array of `[title, revId]`; entry `pageIdx − chunk × pageChunkSize` is that page. |
-| `holes/{YYYY-MM-DD}.json` | `{ holeNo, date, snap, wiki, par, pickUp, shortest, start: {idx, title, revId}, target: {idx, title, revId}, difficulty, status }` |
-| `holes/index.json` | `{ holes: [{ date, holeNo, status, snap, par, start, target }] }` sorted by date. `start`/`target` are titles, kept for the builder's no-repeat rules; the Worker must never serve this file as-is. |
-| `distances/{YYYY-MM-DD}.bin` | `Uint8Array` of length `articleCount`: clicks from each page index to the target. 255 = no route. |
+| `{wiki}/holes/{YYYY-MM-DD}.json` | `{ holeNo, date, snap, wiki, par, pickUp, shortest, start: {idx, title, revId}, target: {idx, title, revId}, difficulty, status }`. Namespaced by wiki so test (`simplewiki`) and launch (`enwiki`) holes never share a date. The Worker reads `env.WIKI` to pick the prefix. |
+| `{wiki}/holes/index.json` | `{ holes: [{ date, holeNo, status, snap, par, start, target }] }` sorted by date, per wiki. `start`/`target` are titles, kept for the builder's no-repeat rules; the Worker must never serve this file as-is. |
+| `{wiki}/distances/{YYYY-MM-DD}.bin` | `Uint8Array` of length `articleCount`: clicks from each page index to the target. 255 = no route. Namespaced by wiki. |
 | `html/{wiki}/{revId}.html` | Cached Parsoid HTML for one pinned revision. Written by the Worker on first request. |
 
 The builder must use the same FNV-1a function as `worker/src/lib/titles.ts`. Add a shared test vector file both sides test against.
@@ -206,7 +206,7 @@ Disambiguation pages, list pages (`List of …`), years and dates (`1999`, `Marc
 
 ### 5.5 Export and upload
 
-- Write title shards, hole files, distance files and `holes/index.json`.
+- Write title shards (under `snapshots/{snap}/`), hole files, distance files and the index (under `{wiki}/holes/` and `{wiki}/distances/`).
 - Upload with boto3 to R2's S3-compatible endpoint (`https://{CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`) using `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`.
 - New holes upload with `status: "queued"`. The owner can flip a date to `"approved"` (a small script or a field in `holes/index.json`). The Worker serves `queued` holes in dev and only `approved` holes in production.
 

@@ -45,15 +45,17 @@ def test_build_writes_r2_layout(tmp_path):
     pages = json.loads((snap / "pages" / "0.json").read_text())
     assert pages[0] == ["Octopus", 5001] and len(pages) == 20
 
-    hole = json.loads((tmp_path / "holes" / "2026-12-07.json").read_text())
+    hole = json.loads((tmp_path / "simplewiki" / "holes" / "2026-12-07.json").read_text())
     assert hole["status"] == "queued" and hole["snap"] == "simplewiki-20261001"
     assert hole["pickUp"] == hole["par"] * 2 and hole["shortest"] == hole["par"] - 1
     assert set(hole["start"]) == {"idx", "title", "revId"}
-    dist = np.frombuffer((tmp_path / "distances" / "2026-12-07.bin").read_bytes(), dtype=np.uint8)
+    dist = np.frombuffer(
+        (tmp_path / "simplewiki" / "distances" / "2026-12-07.bin").read_bytes(), dtype=np.uint8
+    )
     assert len(dist) == 20 and dist[hole["target"]["idx"]] == 0
     assert dist[hole["start"]["idx"]] == hole["shortest"]
 
-    index = json.loads((tmp_path / "holes" / "index.json").read_text())
+    index = json.loads((tmp_path / "simplewiki" / "holes" / "index.json").read_text())
     assert [e["date"] for e in index["holes"]] == ["2026-12-07", "2026-12-08"]
 
 
@@ -77,8 +79,8 @@ def test_existing_dates_are_skipped(tmp_path):
         )
     )
     assert run(tmp_path, "--days", "2", "--index", str(index)) == 0
-    assert not (tmp_path / "holes" / "2026-12-07.json").exists()
-    out = json.loads((tmp_path / "holes" / "index.json").read_text())
+    assert not (tmp_path / "simplewiki" / "holes" / "2026-12-07.json").exists()
+    out = json.loads((tmp_path / "simplewiki" / "holes" / "index.json").read_text())
     assert [(e["date"], e["status"]) for e in out["holes"]] == [
         ("2026-12-07", "approved"),
         ("2026-12-08", "queued"),
