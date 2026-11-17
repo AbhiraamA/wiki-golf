@@ -18,7 +18,7 @@ Running checklist for `plan.md`. Ticked items have landed.
 - [x] Create R2 bucket `wiki-golf` (`BUCKET` binding in `worker/wrangler.jsonc`)
 - [x] Create D1 database `wiki-golf` (region ENAM, id `4fd16e0f-2c71-4fda-8d92-e07f03bbfd44`) and record it in `worker/wrangler.jsonc`
 - [ ] **Owner:** create R2 S3 credentials (R2 → Manage API tokens → Object Read & Write, bucket `wiki-golf` only) and add GitHub secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
-- [ ] CI green on GitHub (needs the branch pushed)
+- [x] CI green on GitHub (PR #1). CI runs Node 24: Node 22 ships npm 10, which rejects the npm 11 lockfile
 
 ### Notes and deviations
 
