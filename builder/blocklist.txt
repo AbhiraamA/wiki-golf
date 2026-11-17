@@ -1,0 +1,3 @@
+# Titles that must never be a start or target (sensitive topics).
+# One title per line, spaces or underscores, case-insensitive. Lines starting with # are comments.
+# Reviewed by the owner. Pages listed here can still appear in the middle of a route.

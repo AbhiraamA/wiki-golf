@@ -1,0 +1,83 @@
+{
+  "description": "FNV-1a 32-bit over UTF-8 bytes. Checked by shared (TS) and builder (Python) tests.",
+  "vectors": [
+    {
+      "input": "",
+      "fnv1a32": 2166136261,
+      "shard64": 5,
+      "shard1024": 453
+    },
+    {
+      "input": "a",
+      "fnv1a32": 3826002220,
+      "shard64": 44,
+      "shard1024": 300
+    },
+    {
+      "input": "foobar",
+      "fnv1a32": 3214735720,
+      "shard64": 40,
+      "shard1024": 360
+    },
+    {
+      "input": "Apollo_11",
+      "fnv1a32": 2025746353,
+      "shard64": 49,
+      "shard1024": 945
+    },
+    {
+      "input": "Octopus",
+      "fnv1a32": 4016604846,
+      "shard64": 46,
+      "shard1024": 686
+    },
+    {
+      "input": "Twenty_Thousand_Leagues_Under_the_Seas",
+      "fnv1a32": 3363619472,
+      "shard64": 16,
+      "shard1024": 656
+    },
+    {
+      "input": "Verne's_Moon",
+      "fnv1a32": 129996883,
+      "shard64": 19,
+      "shard1024": 83
+    },
+    {
+      "input": "Mercury_(planet,_element)",
+      "fnv1a32": 2754953593,
+      "shard64": 57,
+      "shard1024": 377
+    },
+    {
+      "input": "Café",
+      "fnv1a32": 3485634729,
+      "shard64": 41,
+      "shard1024": 169
+    },
+    {
+      "input": "Zürich",
+      "fnv1a32": 3607133984,
+      "shard64": 32,
+      "shard1024": 800
+    },
+    {
+      "input": "東京",
+      "fnv1a32": 1759422319,
+      "shard64": 47,
+      "shard1024": 879
+    },
+    {
+      "input": "Ἀθῆναι",
+      "fnv1a32": 967258313,
+      "shard64": 9,
+      "shard1024": 201
+    },
+    {
+      "input": "🐙",
+      "fnv1a32": 479024923,
+      "shard64": 27,
+      "shard1024": 795
+    }
+  ]
+}

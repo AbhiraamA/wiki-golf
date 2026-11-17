@@ -103,9 +103,9 @@ wiki-golf/
 | --- | --- |
 | `snapshots/{snap}/meta.json` | `{ snap, wiki, dumpDate, articleCount, linkCount, shardCount, builtAt }`. `snap` = `{wiki}-{dumpDate}`, e.g. `simplewiki-20261101`. |
 | `snapshots/{snap}/titles/{shard}.json` | Title index shard: `{ "Title_With_Underscores": [pageIdx, revId] }`. Redirect titles map to their target's entry. Shard = FNV-1a 32-bit hash of the title modulo `shardCount` (1024 for enwiki, 64 for simplewiki). |
-| `snapshots/{snap}/pages/{pageIdx}.json` | `{ title, revId }` for each page index, sharded the same way if one file per page is too many (decide in Phase 1 and record it here). |
+| `snapshots/{snap}/pages/{chunk}.json` | Decided in Phase 1: one file per page would be ~7 million R2 writes for enwiki (over the 1 million/month free limit), so pages are chunked. `chunk = floor(pageIdx / pageChunkSize)` (`pageChunkSize` = 1000, in `shared/config.json` and `meta.json`). Contents: a JSON array of `[title, revId]`; entry `pageIdx − chunk × pageChunkSize` is that page. |
 | `holes/{YYYY-MM-DD}.json` | `{ holeNo, date, snap, wiki, par, pickUp, shortest, start: {idx, title, revId}, target: {idx, title, revId}, difficulty, status }` |
-| `holes/index.json` | List of available dates with hole numbers and status. |
+| `holes/index.json` | `{ holes: [{ date, holeNo, status, snap, par, start, target }] }` sorted by date. `start`/`target` are titles, kept for the builder's no-repeat rules; the Worker must never serve this file as-is. |
 | `distances/{YYYY-MM-DD}.bin` | `Uint8Array` of length `articleCount`: clicks from each page index to the target. 255 = no route. |
 | `html/{wiki}/{revId}.html` | Cached Parsoid HTML for one pinned revision. Written by the Worker on first request. |
 
