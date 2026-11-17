@@ -87,12 +87,15 @@ def index_entry(record: dict) -> dict:
 
 
 def write_holes(g: Graph, holes: list[Hole], out: Path) -> list[tuple[dict, Path, Path]]:
+    # Holes and distances live under the wiki's own prefix (e.g. simplewiki/holes/…) so that
+    # one wiki's dates never collide with another's. Snapshots keep their own prefix because
+    # `snap` already names the wiki (e.g. simplewiki-20261101).
     written = []
     for h in holes:
         record = hole_record(g, h)
-        hp = out / "holes" / f"{h.date}.json"
+        hp = out / g.wiki / "holes" / f"{h.date}.json"
         _write_json(hp, record)
-        dp = out / "distances" / f"{h.date}.bin"
+        dp = out / g.wiki / "distances" / f"{h.date}.bin"
         dp.parent.mkdir(parents=True, exist_ok=True)
         dp.write_bytes(np.ascontiguousarray(h.dist, dtype=np.uint8).tobytes())
         written.append((record, hp, dp))
@@ -106,7 +109,7 @@ def merge_index(existing: list[dict], new_entries: list[dict]) -> dict:
     return {"holes": [by_date[d] for d in sorted(by_date)]}
 
 
-def write_index(index: dict, out: Path) -> Path:
-    p = out / "holes" / "index.json"
+def write_index(index: dict, out: Path, wiki: str) -> Path:
+    p = out / wiki / "holes" / "index.json"
     _write_json(p, index)
     return p

@@ -1,0 +1,49 @@
+name: Migrate holes layout
+
+# One-off admin job: move the old top-level holes/ and distances/ objects in R2 under a
+# wiki prefix ({wiki}/holes/, {wiki}/distances/). Manual only. Dry run unless `apply` is set.
+
+on:
+  workflow_dispatch:
+    inputs:
+      wiki:
+        description: Wiki prefix to move the objects under
+        type: choice
+        options: [simplewiki, enwiki]
+        default: simplewiki
+      apply:
+        description: Perform the copies (otherwise dry run)
+        type: boolean
+        default: false
+      delete_old:
+        description: Delete the originals after copying (only with apply)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r2-admin
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e ./builder
+      - name: Relayout
+        run: |
+          args=(relayout --wiki "${{ inputs.wiki }}")
+          if [ "${{ inputs.apply }}" = "true" ]; then args+=(--apply); fi
+          if [ "${{ inputs.delete_old }}" = "true" ]; then args+=(--delete-old); fi
+          python -m wikigolf_builder "${args[@]}"

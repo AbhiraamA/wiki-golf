@@ -24,6 +24,14 @@ def log(msg: str) -> None:
     print(msg, flush=True)
 
 
+def index_key(wiki: str) -> str:
+    return f"{wiki}/holes/index.json"
+
+
+def hole_key(wiki: str, date: str) -> str:
+    return f"{wiki}/holes/{date}.json"
+
+
 def peak_memory_mb() -> float:
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return rss / (1024 * 1024) if sys.platform == "darwin" else rss / 1024
@@ -68,7 +76,7 @@ def build(args: argparse.Namespace) -> int:
         from .upload import R2
 
         r2 = R2()
-        index = r2.get_json("holes/index.json") or {"holes": []}
+        index = r2.get_json(index_key(args.wiki)) or {"holes": []}
     elif args.index and Path(args.index).exists():
         import json
 
@@ -126,9 +134,10 @@ def build(args: argparse.Namespace) -> int:
 
     uploaded = "no (--upload not set)"
     if r2 is not None:
-        uploaded = upload_all(r2, out, g.snap, snapshot_files, written, new_entries)
+        uploaded = upload_all(r2, out, g.wiki, g.snap, snapshot_files, written)
     else:
-        export.write_index(export.merge_index(index.get("holes", []), new_entries), out)
+        merged = export.merge_index(index.get("holes", []), new_entries)
+        export.write_index(merged, out, g.wiki)
 
     summary = render_summary(
         g=g,
@@ -151,7 +160,7 @@ def build(args: argparse.Namespace) -> int:
     return 1 if missing else 0
 
 
-def upload_all(r2, out: Path, snap: str, snapshot_files, written, new_entries) -> str:
+def upload_all(r2, out: Path, wiki: str, snap: str, snapshot_files, written) -> str:
     from .upload import key_for
 
     meta_key = f"snapshots/{snap}/meta.json"
@@ -171,10 +180,10 @@ def upload_all(r2, out: Path, snap: str, snapshot_files, written, new_entries) -
         r2.put_file(key_for(dp, out), dp)
         r2.put_file(key, hp)
         done.append(export.index_entry(record))
-    current = r2.get_json("holes/index.json") or {"holes": []}
+    current = r2.get_json(index_key(wiki)) or {"holes": []}
     index = export.merge_index(current.get("holes", []), done)
-    r2.put_json("holes/index.json", index)
-    export.write_index(index, out)
+    r2.put_json(index_key(wiki), index)
+    export.write_index(index, out, wiki)
     return f"yes: {len(done)} holes, {r2.puts} objects written"
 
 
@@ -227,13 +236,13 @@ def show(args: argparse.Namespace) -> int:
     from .upload import R2
 
     r2 = R2()
-    index = r2.get_json("holes/index.json") or {"holes": []}
+    index = r2.get_json(index_key(args.wiki)) or {"holes": []}
     dates = _select_dates(index, args.dates, args.through, args.status)
     if not dates:
-        log("No matching holes in R2.")
+        log(f"No matching holes in R2 for {args.wiki}.")
         return 0
     for date in sorted(dates):
-        rec = r2.get_json(f"holes/{date}.json")
+        rec = r2.get_json(hole_key(args.wiki, date))
         if rec is None:
             log(f"{date}: not found in R2")
             continue
@@ -258,7 +267,7 @@ def approve(args: argparse.Namespace) -> int:
     from .upload import R2
 
     r2 = R2()
-    index = r2.get_json("holes/index.json") or {"holes": []}
+    index = r2.get_json(index_key(args.wiki)) or {"holes": []}
     if args.through:
         dates = [
             e["date"]
@@ -272,18 +281,57 @@ def approve(args: argparse.Namespace) -> int:
         if date not in by_date:
             log(f"{date}: no such hole")
             continue
-        record = r2.get_json(f"holes/{date}.json")
+        record = r2.get_json(hole_key(args.wiki, date))
         log(
             f"{date}: {record['start']['title']} -> {record['target']['title']} ({record['status']})"
         )
         if args.dry_run:
             continue
         record["status"] = "approved"
-        r2.put_json(f"holes/{date}.json", record)
+        r2.put_json(hole_key(args.wiki, date), record)
         by_date[date]["status"] = "approved"
     if not args.dry_run:
-        r2.put_json("holes/index.json", index)
+        r2.put_json(index_key(args.wiki), index)
         log(f"Approved {len(dates)} hole(s)")
+    return 0
+
+
+def relayout(args: argparse.Namespace) -> int:
+    """One-off: move the old top-level holes/ and distances/ into a wiki prefix.
+
+    Copies each object to {wiki}/<key>, then (with --delete-old) removes the original only after
+    the copy is confirmed present. Dry-run by default.
+    """
+    from .upload import R2
+
+    r2 = R2()
+    wiki = args.wiki
+    old_keys = [
+        k
+        for k in r2.list_keys("holes/") + r2.list_keys("distances/")
+        if not k.startswith(f"{wiki}/")
+    ]
+    if not old_keys:
+        log("Nothing to move: no old top-level holes/ or distances/ objects.")
+        return 0
+    log(f"{'Moving' if args.apply else 'Would move'} {len(old_keys)} object(s) under {wiki}/:")
+    for key in sorted(old_keys):
+        dst = f"{wiki}/{key}"
+        log(f"  {key} -> {dst}")
+        if not args.apply:
+            continue
+        r2.copy(key, dst)
+        if not r2.exists(dst):
+            raise SystemExit(f"Copy of {key} to {dst} not confirmed; stopping before any delete")
+        if args.delete_old:
+            r2.delete(key)
+    if args.apply:
+        log(
+            f"Done. Copied {len(old_keys)} object(s)"
+            + (" and deleted originals." if args.delete_old else ".")
+        )
+    else:
+        log("Dry run: pass --apply to copy, and --delete-old to remove the originals afterwards.")
     return 0
 
 
@@ -305,17 +353,27 @@ def main(argv: list[str] | None = None) -> int:
     b.set_defaults(func=build)
 
     s = sub.add_parser("show", help="Print full hole details from R2 for local review")
+    s.add_argument("--wiki", default="simplewiki")
     s.add_argument("--dates", nargs="+", help="Specific dates; default is all in the index")
     s.add_argument("--through", help="Only holes up to this date")
     s.add_argument("--status", choices=["queued", "approved"], help="Only holes with this status")
     s.set_defaults(func=show)
 
     a = sub.add_parser("approve", help="Mark queued holes as approved in R2")
+    a.add_argument("--wiki", default="simplewiki")
     g = a.add_mutually_exclusive_group(required=True)
     g.add_argument("--dates", nargs="+")
     g.add_argument("--through", help="Approve every queued hole up to this date")
     a.add_argument("--dry-run", action="store_true")
     a.set_defaults(func=approve)
+
+    r = sub.add_parser(
+        "relayout", help="One-off: move old holes/ and distances/ under a wiki prefix"
+    )
+    r.add_argument("--wiki", default="simplewiki")
+    r.add_argument("--apply", action="store_true", help="Perform the copies (default: dry run)")
+    r.add_argument("--delete-old", action="store_true", help="Delete originals after copying")
+    r.set_defaults(func=relayout)
 
     args = p.parse_args(argv)
     return args.func(args)
