@@ -6,4 +6,6 @@ export interface Env {
   BUCKET: R2Bucket;
   WIKI: Wiki;
   ENVIRONMENT: 'dev' | 'production';
+  /** HMAC key for the identity cookie. Dev value in wrangler.jsonc; prod via `wrangler secret put`. */
+  COOKIE_SECRET: string;
 }

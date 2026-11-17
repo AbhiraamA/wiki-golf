@@ -62,6 +62,22 @@ The owner approved these deviations on 2026-11-17.
 - **Blocklist:** `builder/blocklist.txt` is a conservative starter list for the owner to review and extend. Actual slur words are deliberately not written into this public file; add specific slur-titled articles during private review. "Recent" deaths/disasters can't be captured statically — review each build's queued holes with `show`.
 - **Memory:** edges are de-duplicated with one in-memory `np.unique` over int64 keys. Fine for simplewiki; for enwiki (~1.5 billion link rows) Phase 6 will need chunked sorting or memory-mapped arrays, as the plan anticipates.
 
+## Phase 2 — Worker API
+
+- [x] D1 migration `0001_init.sql`: full schema from plan section 4 (players, rounds, shots, page_visits, hole_stats; unique ranked index per player+date).
+- [x] Identity cookie `wg_pid = {uuid}.{hmac}`, HMAC-SHA-256 signed with `COOKIE_SECRET` (`HttpOnly; Secure; SameSite=Lax; Max-Age=400d`); tampered cookies are rejected and a new id issued. Dev secret in `wrangler.jsonc`; production via `wrangler secret put COOKIE_SECRET`.
+- [x] Snapshot reads from R2 (`snapshot.ts`): meta, title shards (FNV-1a → shard, redirects folded), page chunks; per-instance in-memory caches.
+- [x] Endpoints: `GET /api/hole` (public info, no distances/route, future dates rejected via the UTC−12…+14 window), `GET /api/page?title=&date=` (resolves via the hole's snapshot, returns pinned-revision HTML, cached immutable), `POST /api/rounds` (sets cookie, creates player, ranked vs practice), `POST /api/rounds/:id/shots`, `/mulligan`, `/caddie`, `GET /api/rounds/:id/result`, `GET /api/me`.
+- [x] Shot validation (plan §6): round not done, shot number is next (repeat replays the stored answer), `fromIdx` is the current page, the link is present in the current page's cached HTML, resolves through the shard index, and the distance guard rejects any shot claiming to get more than one click closer. Shot + round update run in one D1 batch; pick-up ends the round at double par.
+- [x] HTML article HTML served from R2 or fetched from Wikimedia REST (pinned revision) with the project User-Agent, then cached to R2. The Worker never injects this HTML; it parses links only for shot validation.
+- [x] Security headers: CSP, `X-Content-Type-Options`, `Referrer-Policy` on the static front end via `web/public/_headers` (the assets layer serves those paths directly, since `run_worker_first` is only `/api/*`); nosniff + referrer on API responses via middleware.
+- [x] Tests (`@cloudflare/vitest-plugin`, migrations applied via `readD1Migrations`, a seeded 4-page fixture snapshot in R2): a full hole played through the API (start, bunker, mulligan, caddie, fairway, holing → PAR), a faked shot rejected, ownership enforced, and a second round on the same date is practice.
+
+### Deferred to Phase 4 (not in this phase)
+
+- `POST /api/backup-code`, `POST /api/restore`, streak updates on ranked finish, rarity computation and the `scheduled()` crons (rarity/page_visits/hole_stats recompute and retention deletes). `GET /api/me` returns the stored player totals, which stay at zero until Phase 4 wires up streak updates. `GET /api/rounds/:id/result` returns `rarity: "pending"` until then.
+- `badge` on `HoleInfo`/`shared` is added in both this branch and PR #5; whichever merges second resolves trivially.
+
 ## Open questions for the owner
 
 | Question                                        | Answer                                                                                      |
