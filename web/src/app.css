@@ -1,0 +1,176 @@
+/* Design tokens and shared controls, from design/mock.html. One visual world, no light theme. */
+:root {
+  --night: #123828;
+  --grass: #2f7a4a;
+  --grass-dot: #2a7044;
+  --fairway: #86c98a;
+  --green: #b4e08a;
+  --paper: #f4ebd0;
+  --paper-line: #cdbf97;
+  --paper-bright: #fffdf7;
+  --ink: #142019;
+  --ink-soft: #5a6358;
+  --mist: #a9c7b2;
+  --mist-light: #dcebd8;
+  --outline: #5e8a70;
+  --flag: #e8452c;
+  --flag-dark: #a92e1b;
+  --flag-ink: #fff7e6;
+  --sand: #e9c977;
+  --gold: #f6d77a;
+  --shadow: #0b1f16;
+  --link: #2f9a55;
+  --link-text: #24663d;
+  --font-display: 'Pixelify Sans', 'Courier New', monospace;
+  --font-body: 'Atkinson Hyperlegible', Verdana, system-ui, sans-serif;
+  --frame:
+    0 -4px 0 0 var(--shadow), 0 4px 0 0 var(--shadow), -4px 0 0 0 var(--shadow),
+    4px 0 0 0 var(--shadow);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--night);
+  color: var(--paper);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input {
+  font: inherit;
+}
+:focus-visible {
+  outline: 3px solid var(--sand);
+  outline-offset: 3px;
+}
+[hidden] {
+  display: none !important;
+}
+svg.px {
+  shape-rendering: crispEdges;
+  display: block;
+}
+
+#app {
+  height: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Shared controls */
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 60px;
+  border: 0;
+  background: var(--flag);
+  color: var(--flag-ink);
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 0 #7a2213;
+  cursor: pointer;
+  box-shadow:
+    var(--frame),
+    inset 0 -5px 0 0 var(--flag-dark);
+}
+.btn-primary:active {
+  transform: translateY(2px);
+  box-shadow:
+    var(--frame),
+    inset 0 -2px 0 0 var(--flag-dark);
+}
+.btn-ghost {
+  min-height: 48px;
+  padding: 0 16px;
+  border: 2px solid var(--outline);
+  background: transparent;
+  color: var(--paper);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  border-color: var(--mist);
+}
+.btn-text {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--mist);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--mist);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.muted {
+  color: var(--mist);
+  font-size: 15px;
+}
+
+/* Animations shared across screens (CSS steps() only). */
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  #app {
+    max-width: 1080px;
+    padding: 0 24px;
+  }
+}

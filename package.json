@@ -1,0 +1,36 @@
+{
+  "name": "wiki-golf",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "web",
+    "worker"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n worker,web -c green,yellow \"npm -w worker run dev\" \"npm -w web run dev\"",
+    "build": "npm -w web run build",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test --workspaces",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^9.2.1",
+    "eslint": "^10.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-svelte": "^3.24.1",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "prettier-plugin-svelte": "^4.1.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "~4.1.12"
+  }
+}
