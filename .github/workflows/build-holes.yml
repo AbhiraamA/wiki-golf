@@ -55,7 +55,9 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: builder/pyproject.toml
-      - run: pip install ./builder
+      # Editable install so the package reads shared/config.json and builder/blocklist.txt
+      # from the checked-out repo tree (they live outside the package directory).
+      - run: pip install -e ./builder
       - name: Build holes
         run: |
           args=(build --wiki "$WIKI" --days "$DAYS" --start "$START" --out "$RUNNER_TEMP/out")
