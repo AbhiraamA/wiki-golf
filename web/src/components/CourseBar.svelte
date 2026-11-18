@@ -64,4 +64,31 @@
     <span class="end">{game.hole?.start.title.replace(/_/g, ' ')}</span>
     <span class="end right">{game.hole?.target.title.replace(/_/g, ' ')}</span>
   </div>
+
+  {#if game.hole?.target.shortDesc}
+    <p class="pin-desc">
+      <span class="pin-label">Pin</span>
+      {game.hole.target.shortDesc}
+    </p>
+  {/if}
 </header>
+
+<style>
+  .pin-desc {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 6px 0 0;
+    font-size: 13px;
+    line-height: 1.3;
+    color: var(--mist);
+  }
+  .pin-label {
+    flex: none;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 11px;
+    color: var(--ink);
+  }
+</style>

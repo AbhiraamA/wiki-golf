@@ -82,9 +82,9 @@ def difficulty_from_distance(d: int) -> float:
     return round(min(d, MAX_DISTANCE) / MAX_DISTANCE, 2)
 
 
-def fame_threshold(indeg: np.ndarray, top_fraction: float) -> int:
-    """Smallest in-degree that puts an article in roughly the top `top_fraction` by inlinks."""
-    return int(np.quantile(indeg, 1.0 - top_fraction))
+def fame_threshold(counts: np.ndarray, top_fraction: float) -> int:
+    """Smallest count that puts an article in roughly the top `top_fraction` of `counts`."""
+    return int(np.quantile(counts, 1.0 - top_fraction))
 
 
 def shortest_route(g: Graph, start: int, dist: np.ndarray) -> list[int]:
@@ -106,35 +106,45 @@ class Picker:
         settings: PickSettings,
         history: History,
         fetch_html: Callable[[int], str] | None,
+        view_lookup: Callable[[str], int | None] | None = None,
         log=print,
     ) -> None:
         self.g = g
         self.s = settings
         self.history = history
         self.fetch_html = fetch_html
+        self.view_lookup = view_lookup  # en title -> monthly pageviews (None if no such article)
         self.log = log
-        indeg = g.in_degree()
-        self.indeg = indeg
-        self.target_thresh = fame_threshold(indeg, settings.target_top_fraction)
-        self.start_thresh_short = fame_threshold(indeg, settings.start_top_fraction_short)
-        self.start_thresh_long = fame_threshold(indeg, settings.start_top_fraction_long)
-        # The fame filter: targets are famous, starts well-known (tiered by hole length). Stubs and
-        # excluded pages are out.
-        self.target_ok = ~excluded & (indeg >= self.target_thresh)
-        self.start_ok_short = ~excluded & (indeg >= self.start_thresh_short)
-        self.start_ok_long = ~excluded & (indeg >= self.start_thresh_long)
+        # Fame uses interlanguage-link count, not inlinks: navboxes inflate inlinks but not the
+        # number of other-language Wikipedias that cover a topic. Targets are in the top
+        # `target_langlink_fraction`; a real-readership floor is applied lazily in _famous_enough.
+        self.langlink_thresh = fame_threshold(g.langlinks, settings.target_langlink_fraction)
+        self.target_ok = ~excluded & (g.langlinks >= self.langlink_thresh)
+        # Starts only need to be readable: the light `excluded` filter (stub/list/year/music/
+        # Olympics) is the whole bar, with no fame requirement.
+        self.start_ok = ~excluded
         self.removed_edges: list[tuple[int, int]] = []
 
     def fame_summary(self) -> str:
+        views = (
+            f" and >= {self.s.min_target_views:,} enwiki monthly views"
+            if self.view_lookup is not None
+            else " (pageview check off)"
+        )
         return (
-            f"fame filter: targets >= {self.target_thresh} inlinks "
-            f"({int(self.target_ok.sum())} articles); starts short >= {self.start_thresh_short} "
-            f"({int(self.start_ok_short.sum())}), long >= {self.start_thresh_long} "
-            f"({int(self.start_ok_long.sum())})"
+            f"fame filter: targets = top {self.s.target_langlink_fraction:.0%} by interlanguage "
+            f"links (>= {self.langlink_thresh} langlinks, {int(self.target_ok.sum())} articles)"
+            f"{views}; starts = {int(self.start_ok.sum())} readable articles"
         )
 
-    def _start_ok(self, used_d: int) -> np.ndarray:
-        return self.start_ok_long if used_d >= self.s.long_distance else self.start_ok_short
+    def _famous_enough(self, idx: int) -> bool:
+        """A target also needs real readership: enough enwiki pageviews for the same title."""
+        if self.view_lookup is None:
+            return True
+        views = self.view_lookup(self.g.en_title[idx] or self.g.titles[idx])
+        if views is None:  # no English article for this title: judge on langlinks alone
+            return True
+        return views >= self.s.min_target_views
 
     def _fresh(self, idx: int, date: str) -> bool:
         return not self.history.recent(self.g.titles[idx], date, self.s.repeat_window_days)
@@ -144,7 +154,7 @@ class Picker:
         for used_d in dist_list:
             pool = [
                 int(x)
-                for x in np.flatnonzero(self._start_ok(used_d) & (dist == used_d))
+                for x in np.flatnonzero(self.start_ok & (dist == used_d))
                 if int(x) != target
                 and self._fresh(int(x), date)
                 and (self.g.titles[int(x)], self.g.titles[target]) not in self.history.pairs
@@ -203,7 +213,8 @@ class Picker:
         rng = random.Random(f"{date}|{self.g.snap}")
         cands = [int(i) for i in np.flatnonzero(self.target_ok) if self._fresh(int(i), date)]
         rng.shuffle(cands)
-        cands = cands[: self.s.candidates_per_day]
+        # The pageview floor needs a network call each, so apply it only to the day's shortlist.
+        cands = [i for i in cands[: self.s.candidates_per_day] if self._famous_enough(i)]
         for _ in range(self.s.max_verify_attempts):
             cand = self._one_candidate(cands, [d], date, rng)
             if cand is None:

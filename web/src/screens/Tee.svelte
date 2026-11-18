@@ -41,6 +41,22 @@
         {hole.start.title.replace(/_/g, ' ')}<br /><span class="to">to</span>
         {hole.target.title.replace(/_/g, ' ')}
       </h1>
+      {#if hole.start.shortDesc || hole.target.shortDesc}
+        <dl class="route-desc">
+          {#if hole.start.shortDesc}
+            <div>
+              <dt>From</dt>
+              <dd>{hole.start.shortDesc}</dd>
+            </div>
+          {/if}
+          {#if hole.target.shortDesc}
+            <div>
+              <dt>To</dt>
+              <dd>{hole.target.shortDesc}</dd>
+            </div>
+          {/if}
+        </dl>
+      {/if}
       <div class="par-row">
         <span class="par-chip">PAR {hole.par}</span>
         <span class="muted">Pick up at {hole.pickUp} strokes</span>
@@ -124,6 +140,32 @@
   }
   .route-title .to {
     color: var(--mist);
+  }
+  .route-desc {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 4px 0 0;
+  }
+  .route-desc div {
+    display: flex;
+    gap: 8px;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  .route-desc dt {
+    flex: none;
+    width: 2.6em;
+    font-weight: 700;
+    color: var(--mist);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 11px;
+    padding-top: 2px;
+  }
+  .route-desc dd {
+    margin: 0;
+    color: var(--ink);
   }
   .par-row {
     display: flex;

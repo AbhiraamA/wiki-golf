@@ -8,6 +8,8 @@ export interface PageRef {
   idx: number;
   title: string;
   revId: number;
+  /** One-line description (Wikidata / short description). Present on hole start & target only. */
+  shortDesc?: string;
 }
 
 /** Shown on the tee screen for a themed day (holiday, anniversary). */

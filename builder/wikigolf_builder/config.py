@@ -38,18 +38,16 @@ MAX_DISTANCE = 6
 class PickSettings:
     """Thresholds for choosing holes.
 
-    Fame is a percentile of incoming-link count, so both endpoints are recognisable: targets sit
-    in the top `target_top_fraction` of articles by inlinks. Starts are tiered by hole length,
-    because few famous articles sit far from a famous target: short holes (distance <
-    `long_distance`) demand a well-known start (top `start_top_fraction_short`), while long holes
-    keep a looser bar (top `start_top_fraction_long`) so they can still be built. Difficulty comes
-    from distance (plan.md section 1), not from obscurity.
+    A target must be *famous*: in the top `target_langlink_fraction` of articles by interlanguage
+    links (a navbox-proof fame signal, unlike raw inlinks) AND drawing at least `min_target_views`
+    monthly pageviews on English Wikipedia for the same title (Simple English's own traffic is too
+    small to rank by). A start only needs to be readable: not a stub, list, year/date, music page
+    or "X at the Olympics" page (see exclude.py). Difficulty comes from distance (plan.md section
+    1), not from obscurity.
     """
 
-    target_top_fraction: float = 0.03  # targets: top 3% of articles by incoming links
-    start_top_fraction_short: float = 0.08  # starts for short holes (distance < long_distance)
-    start_top_fraction_long: float = 0.20  # starts for long holes (distance >= long_distance)
-    long_distance: int = 5  # a hole is "long" at this shortest distance or more (par 6+)
+    target_langlink_fraction: float = 0.05  # targets: top 5% of articles by interlanguage links
+    min_target_views: int = 30000  # targets: at least this many enwiki pageviews last month
     min_page_len: int = 2000  # below this a page counts as a stub (start/target excluded)
     candidates_per_day: int = 60
     starts_per_target: int = 12

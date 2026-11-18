@@ -15,11 +15,9 @@ from wikigolf_builder.pick import (
 from wikigolf_builder.themes import Badge, Theme
 from wikigolf_builder.verify import link_titles, linked_indices
 
-# Fame filter effectively off (top 100%) so the 20-node fixture yields holes.
+# Fame filter effectively off (top 100% by langlinks) so the 20-node fixture yields holes.
 OPEN = PickSettings(
-    target_top_fraction=1.0,
-    start_top_fraction_short=1.0,
-    start_top_fraction_long=1.0,
+    target_langlink_fraction=1.0,
     min_page_len=100,
     candidates_per_day=20,
     starts_per_target=20,
@@ -77,21 +75,28 @@ def test_fame_threshold_selects_top_fraction():
     assert fame_threshold(indeg, 1.0) == 0  # everything qualifies
 
 
-def test_fame_filter_restricts_endpoints(graph):
-    # Fame nests: target (10%) within short-start (25%) within long-start (60%) eligibility.
-    p = picker(
-        graph,
-        PickSettings(
-            target_top_fraction=0.10,
-            start_top_fraction_short=0.25,
-            start_top_fraction_long=0.60,
-            min_page_len=100,
-        ),
-    )
-    assert 0 < int(p.target_ok.sum()) <= int(p.start_ok_short.sum()) <= int(p.start_ok_long.sum())
-    assert p.target_thresh >= p.start_thresh_short >= p.start_thresh_long
-    assert bool(np.all(~p.target_ok | p.start_ok_short))
-    assert bool(np.all(~p.start_ok_short | p.start_ok_long))
+def test_fame_filter_targets_by_langlinks_starts_light(graph):
+    # Targets are the most inter-linked articles; starts only have to be readable (not excluded).
+    p = picker(graph, PickSettings(target_langlink_fraction=0.10, min_page_len=100))
+    assert p.target_ok[idx(graph, "Moon")]  # 7 interlanguage links
+    assert not p.target_ok[idx(graph, "Squid")]  # only 1
+    ex = excluded_mask(graph.titles, graph.disambig, graph.page_len, 100, set())
+    assert bool(np.array_equal(p.start_ok, ~ex))  # the light filter is the whole bar for starts
+    assert p.start_ok[idx(graph, "Squid")]  # a 1-langlink article is a perfectly good start
+    assert not p.start_ok[idx(graph, "List_of_cephalopods")]  # lists excluded
+    assert not p.target_ok[idx(graph, "Mercury_(planet,_element)")]  # disambiguation excluded
+
+
+def test_pageview_floor_filters_targets(graph):
+    # The pageview gate drops a famous-by-langlinks target that few people actually read.
+    moon, earth = idx(graph, "Moon"), idx(graph, "Earth")
+    views = {graph.en_title[moon]: 500_000, graph.en_title[earth]: 10}
+    # Default min_target_views is 30,000.
+    p = picker(graph, PickSettings(target_langlink_fraction=0.10, min_page_len=100))
+    p.view_lookup = lambda title: views.get(title)
+    assert p._famous_enough(moon)  # 500k views
+    assert not p._famous_enough(earth)  # 10 views, below the floor
+    assert p._famous_enough(idx(graph, "Ocean"))  # unknown title -> judged on langlinks alone
 
 
 def test_link_titles_parses_parsoid_hrefs():
@@ -179,12 +184,7 @@ def theme(targets, badge=("Apollo", "🚀")):
 
 def test_pick_themed_uses_chosen_target_with_badge(graph):
     # Apollo 11 is not famous enough to be a regular target here, but a theme pins it anyway.
-    tight = PickSettings(
-        target_top_fraction=0.03,
-        start_top_fraction_short=1.0,
-        start_top_fraction_long=1.0,
-        min_page_len=100,
-    )
+    tight = PickSettings(target_langlink_fraction=0.03, min_page_len=100)
     p = picker(graph, tight, fetch=fake_fetch(graph))
     assert not p.target_ok[idx(graph, "Apollo_11")]  # fame filter would exclude it
     hole = p.pick_themed("2026-12-07", theme(["Apollo 11"]))

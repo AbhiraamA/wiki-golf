@@ -15,11 +15,12 @@ import requests
 from . import net
 
 BASE = "https://dumps.wikimedia.org"
-TABLES = ("page", "redirect", "page_props", "linktarget", "pagelinks")
+TABLES = ("page", "redirect", "page_props", "langlinks", "linktarget", "pagelinks")
 JOBS = {
     "page": "pagetable",
     "redirect": "redirecttable",
     "page_props": "pagepropstable",
+    "langlinks": "langlinkstable",
     "linktarget": "linktargettable",
     "pagelinks": "pagelinkstable",
 }

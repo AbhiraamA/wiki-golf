@@ -25,6 +25,9 @@ _PATTERNS = [
     re.compile(r"_\(disambiguation\)$", re.I),
     # Music works by their disambiguator: "(album)", "(1999 song)", "(Beatles album)", "(EP)".
     re.compile(rf"_\([^)]*\b({_MUSIC})\)$", re.I),
+    # "X at the Olympics" results pages: "Germany_at_the_2008_Summer_Olympics", "Athletics_at_the_…
+    # Olympic_Games", Paralympics. Fine mid-route, but a dull start or target.
+    re.compile(r"_at_the_.*\b(Olympic|Paralympic)", re.I),
 ]
 
 

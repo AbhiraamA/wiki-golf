@@ -14,6 +14,7 @@ from pathlib import Path
 from . import dumps, export, net
 from .bfs import distances_to
 from .config import BLOCKLIST_PATH, wiki_settings
+from .enrich import make_describe, make_view_lookup
 from .exclude import excluded_mask, load_blocklist
 from .graph import build_graph
 from .pick import History, Picker
@@ -124,7 +125,15 @@ def build(args: argparse.Namespace) -> int:
         g.titles, g.disambig, g.page_len, pick_settings.min_page_len, load_blocklist(BLOCKLIST_PATH)
     )
     fetch = None if args.no_verify else html_fetcher(session, settings.lang)
-    picker = Picker(g, excluded, pick_settings, History.from_index(index["holes"]), fetch, log=log)
+    # Local-dump builds (the tests) stay offline; real builds consult the pageview and Wikidata
+    # APIs. The pageview floor ranks targets by English-Wikipedia readership for the same title.
+    online = not args.dumps_dir
+    view_lookup = None
+    if online and not args.no_pageviews:
+        view_lookup = make_view_lookup(session, dt.datetime.now(dt.UTC).date(), log=log)
+    picker = Picker(
+        g, excluded, pick_settings, History.from_index(index["holes"]), fetch, view_lookup, log=log
+    )
     log(picker.fame_summary())
 
     themes = load_themes(load_themes_doc(args, r2))
@@ -152,8 +161,11 @@ def build(args: argparse.Namespace) -> int:
         assert int(hole.dist[hole.start]) == hole.shortest, f"{hole.date}: route changed"
     pick_secs = time.monotonic() - t0
 
+    if view_lookup is not None and view_lookup.failures[0]:
+        log(f"pageview API: {view_lookup.failures[0]} lookup(s) failed; those judged on langlinks")
+    describe = make_describe(g, session if online else None, settings.lang, log=log)
     snapshot_files = export.write_snapshot(g, out, settings.shard_count)
-    written = export.write_holes(g, holes, out)
+    written = export.write_holes(g, holes, out, describe)
     new_entries = [export.index_entry(rec) for rec, _, _ in written]
 
     uploaded = "no (--upload not set)"
@@ -291,8 +303,12 @@ def show(args: argparse.Namespace) -> int:
         if rec.get("badge"):
             log(f"   badge:  {rec['badge']['emoji']} {rec['badge']['label']}")
         log(f"   start:  {start['title'].replace('_', ' ')}")
+        if start.get("shortDesc"):
+            log(f"           “{start['shortDesc']}”")
         log(f"           {_oldid_url(rec['wiki'], start['revId'])}")
         log(f"   target: {target['title'].replace('_', ' ')}")
+        if target.get("shortDesc"):
+            log(f"           “{target['shortDesc']}”")
         log(f"           {_oldid_url(rec['wiki'], target['revId'])}")
     log("\n(The route is not stored in R2. Review judges the start and target articles.)")
     return 0
@@ -401,6 +417,9 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--dumps-dir", help="Read {table}.sql[.gz] from this folder (tests)")
     b.add_argument("--index", help="Local holes/index.json to treat as history (no upload)")
     b.add_argument("--no-verify", action="store_true", help="Skip the HTML route check (tests)")
+    b.add_argument(
+        "--no-pageviews", action="store_true", help="Skip the enwiki pageview floor for targets"
+    )
     b.add_argument("--pick", action="append", metavar="KEY=N", help="Override a pick setting")
     b.add_argument("--themes", help="Local themes.json (default: R2 themes.json on --upload)")
     b.set_defaults(func=build)

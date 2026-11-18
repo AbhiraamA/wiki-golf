@@ -7,9 +7,7 @@ from wikigolf_builder.cli import main
 from wikigolf_builder.fnv import title_shard
 
 PICK = [
-    "target_top_fraction=1.0",
-    "start_top_fraction_short=1.0",
-    "start_top_fraction_long=1.0",
+    "target_langlink_fraction=1.0",
     "min_page_len=100",
     "candidates_per_day=20",
     "starts_per_target=20",
@@ -47,7 +45,7 @@ def test_build_writes_r2_layout(tmp_path):
     hole = json.loads((tmp_path / "simplewiki" / "holes" / "2026-12-07.json").read_text())
     assert hole["status"] == "queued" and hole["snap"] == "simplewiki-20261001"
     assert hole["pickUp"] == hole["par"] * 2 and hole["shortest"] == hole["par"] - 1
-    assert set(hole["start"]) == {"idx", "title", "revId"}
+    assert {"idx", "title", "revId"} <= set(hole["start"]) <= {"idx", "title", "revId", "shortDesc"}
     dist = np.frombuffer(
         (tmp_path / "simplewiki" / "distances" / "2026-12-07.bin").read_bytes(), dtype=np.uint8
     )
@@ -106,3 +104,5 @@ def test_build_applies_themed_day(tmp_path):
     hole = json.loads((tmp_path / "simplewiki" / "holes" / "2026-12-07.json").read_text())
     assert hole["badge"] == {"label": "Demo Day", "emoji": "🚀"}
     assert hole["target"]["title"] == "Apollo_11"
+    # The local wikibase-shortdesc flows into the hole file (no network for --dumps-dir builds).
+    assert hole["target"]["shortDesc"] == "First crewed Moon landing, 1969"
