@@ -43,29 +43,40 @@ class Hole:
 
 @dataclass
 class History:
-    """Past holes, by title, used for the no-repeat rules."""
+    """Past holes, by title and role, used for the no-repeat rules.
 
-    used: dict[str, list[str]]  # title -> dates used as start or target
+    Start and target reuse are tracked separately so each can have its own window: a target is the
+    memorable destination (no repeat for a year), while a start is only the jumping-off point (it
+    may come round again sooner). The exact (start, target) pair is never reused.
+    """
+
+    target_dates: dict[str, list[str]]  # title -> dates used as a target
+    start_dates: dict[str, list[str]]  # title -> dates used as a start
     pairs: set[tuple[str, str]]
 
     @classmethod
     def from_index(cls, entries: list[dict]) -> History:
-        h = cls(used={}, pairs=set())
+        h = cls(target_dates={}, start_dates={}, pairs=set())
         for e in entries:
             if "start" in e and "target" in e:
                 h.add(e["date"], e["start"], e["target"])
         return h
 
     def add(self, date: str, start: str, target: str) -> None:
-        self.used.setdefault(start, []).append(date)
-        self.used.setdefault(target, []).append(date)
+        self.start_dates.setdefault(start, []).append(date)
+        self.target_dates.setdefault(target, []).append(date)
         self.pairs.add((start, target))
 
-    def recent(self, title: str, date: str, window_days: int) -> bool:
+    @staticmethod
+    def _recent(dates: list[str], date: str, window_days: int) -> bool:
         d = dt.date.fromisoformat(date)
-        return any(
-            abs((d - dt.date.fromisoformat(x)).days) < window_days for x in self.used.get(title, ())
-        )
+        return any(abs((d - dt.date.fromisoformat(x)).days) < window_days for x in dates)
+
+    def target_recent(self, title: str, date: str, window_days: int) -> bool:
+        return self._recent(self.target_dates.get(title, ()), date, window_days)
+
+    def start_recent(self, title: str, date: str, window_days: int) -> bool:
+        return self._recent(self.start_dates.get(title, ()), date, window_days)
 
 
 def par_for(date: str) -> int:
@@ -146,8 +157,13 @@ class Picker:
             return True
         return views >= self.s.min_target_views
 
-    def _fresh(self, idx: int, date: str) -> bool:
-        return not self.history.recent(self.g.titles[idx], date, self.s.repeat_window_days)
+    def _fresh_target(self, idx: int, date: str) -> bool:
+        window = self.s.target_repeat_window_days
+        return not self.history.target_recent(self.g.titles[idx], date, window)
+
+    def _fresh_start(self, idx: int, date: str) -> bool:
+        window = self.s.start_repeat_window_days
+        return not self.history.start_recent(self.g.titles[idx], date, window)
 
     def _find_start(self, target: int, dist: np.ndarray, dist_list, date, rng):
         """A well-known, fresh start at one of `dist_list` clicks from the target. (start, used_d)."""
@@ -156,7 +172,7 @@ class Picker:
                 int(x)
                 for x in np.flatnonzero(self.start_ok & (dist == used_d))
                 if int(x) != target
-                and self._fresh(int(x), date)
+                and self._fresh_start(int(x), date)
                 and (self.g.titles[int(x)], self.g.titles[target]) not in self.history.pairs
             ]
             if pool:
@@ -211,7 +227,7 @@ class Picker:
         par = par_for(date)
         d = par - 1
         rng = random.Random(f"{date}|{self.g.snap}")
-        cands = [int(i) for i in np.flatnonzero(self.target_ok) if self._fresh(int(i), date)]
+        cands = [int(i) for i in np.flatnonzero(self.target_ok) if self._fresh_target(int(i), date)]
         rng.shuffle(cands)
         # The pageview floor needs a network call each, so apply it only to the day's shortlist.
         cands = [i for i in cands[: self.s.candidates_per_day] if self._famous_enough(i)]

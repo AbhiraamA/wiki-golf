@@ -55,7 +55,12 @@ def fake_fetch(g, missing: set[tuple[str, str]] = frozenset()):
 def picker(g, settings=OPEN, fetch=None, history=None):
     ex = excluded_mask(g.titles, g.disambig, g.page_len, settings.min_page_len, set())
     return Picker(
-        g, ex, settings, history or History(used={}, pairs=set()), fetch, log=lambda *_: None
+        g,
+        ex,
+        settings,
+        history or History(target_dates={}, start_dates={}, pairs=set()),
+        fetch,
+        log=lambda *_: None,
     )
 
 
@@ -155,16 +160,29 @@ def test_missing_link_is_dropped_and_retried(graph):
 
 def test_no_repeats(graph):
     p = picker(graph)
-    seen_pairs, used = set(), {}
+    seen_pairs, targets, starts = set(), set(), set()
     for day in range(1, 8):
         hole = p.pick(f"2026-12-0{day}")
         if hole is None:
             continue
+        # The exact pair never repeats; targets never repeat (365d), starts never repeat (90d).
         assert (hole.start, hole.target) not in seen_pairs
+        assert hole.target not in targets, graph.titles[hole.target]
+        assert hole.start not in starts, graph.titles[hole.start]
         seen_pairs.add((hole.start, hole.target))
-        for t in (hole.start, hole.target):
-            assert t not in used, graph.titles[t]
-            used[t] = day
+        targets.add(hole.target)
+        starts.add(hole.start)
+
+
+def test_start_window_shorter_than_target_window(graph):
+    # A title used as a start 120 days ago is fresh again as a start (90d window), but a title used
+    # as a target 120 days ago is still blocked as a target (365d window).
+    p = picker(graph)
+    p.history.add(
+        "2026-08-09", graph.titles[idx(graph, "Octopus")], graph.titles[idx(graph, "Moon")]
+    )
+    assert p._fresh_start(idx(graph, "Octopus"), "2026-12-07")  # 120d > 90d start window
+    assert not p._fresh_target(idx(graph, "Moon"), "2026-12-07")  # 120d < 365d target window
 
 
 def test_widen_order():

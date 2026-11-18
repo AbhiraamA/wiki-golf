@@ -51,7 +51,8 @@ class PickSettings:
     min_page_len: int = 2000  # below this a page counts as a stub (start/target excluded)
     candidates_per_day: int = 60
     starts_per_target: int = 12
-    repeat_window_days: int = 365
+    target_repeat_window_days: int = 365  # a target can't return for a year (the memorable role)
+    start_repeat_window_days: int = 90  # a start may return sooner; it's just the jumping-off point
     max_verify_attempts: int = 12
     theme_par_widen: int = 1  # on a themed day, par may shift by up to this to fit a start
 
