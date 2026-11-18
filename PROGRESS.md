@@ -83,6 +83,24 @@ The owner approved these deviations on 2026-11-17.
 - `POST /api/backup-code`, `POST /api/restore`, streak updates on ranked finish, rarity computation and the `scheduled()` crons (rarity/page_visits/hole_stats recompute and retention deletes). `GET /api/me` returns the stored player totals, which stay at zero until Phase 4 wires up streak updates. `GET /api/rounds/:id/result` returns `rarity: "pending"` until then.
 - `badge` on `HoleInfo`/`shared` is added in both this branch and PR #5; whichever merges second resolves trivially.
 
+## Phase 3 — Web app
+
+- [x] **Article parser** (`web/src/lib/article/`): Parsoid HTML → safe model via `DOMParser` (inert document, no scripts/resources). Keeps only namespace-0 wiki links and text; drops references, edit links, hatnotes, images, math and maintenance boxes; infobox → "Quick facts", navboxes → "More links"; lists every playable link once. Rendered with Svelte nodes only — never `{@html}`/`innerHTML` (lint enforces it).
+- [x] **API client** (`lib/api.ts`): typed calls to every endpoint, `credentials: 'include'` for the cookie. In dev with `VITE_MOCK=1` it swaps in an in-memory mock (`lib/mock.ts`, Octopus → Apollo 11) that is tree-shaken out of production — lets the whole game be played and screenshotted without the backend.
+- [x] **Game state** (`lib/game.svelte.ts`, Svelte 5 runes): tee → play → holed flow, shot/mulligan/caddie against the API, lie-tag flashes, a client-side toPin stack so a mulligan restores the course position without the server re-sending distances.
+- [x] **Screens & components:** Tee (loading/error/already-played states, streak line, how-to sheet), Play (course bar with stepping ball + lie tag, article card, phone dock, phone Find/Bag sheets, desktop side panel with search + bag + shot list), Holed (result word, squares, rarity line, scorecard toggle, share, play-again, confetti + ball drop). Matches `design/mock.html`.
+- [x] **Local store** (`lib/store.ts`): today's full result saved per date (so "See your result" rebuilds the overlay offline); every call wrapped in try/catch so the game works with storage disabled.
+- [x] **Share** (`lib/share.ts`): clipboard text `Wiki Golf {n} · {WORD} ({strokes} on a par {par})` + one square per shot, no page names.
+- [x] **Animations** (CSS `steps()`): lie-tag pop, ball step, bunker shake, page slide-in, hole drop + pixel confetti; all disabled under `prefers-reduced-motion`.
+- [x] **Done-when checks:** a full hole plays in the browser at 390px and 1280px (screenshotted via the mock); Lighthouse accessibility **100** (≥95 required); production JS **27 KB gzipped** (<150 KB required).
+- [x] Tests (jsdom): the parser (references/edit/interwiki/File links dropped, infobox/navbox surfaced, every link listed once), the mock backend playing a full hole (fairway/bunker/mulligan/caddie/holing), the local store round-trip, and the share text.
+
+### Notes
+
+- **Parser vs. real Parsoid:** tested against crafted Parsoid-like HTML covering the common structures. Real-world robustness (unusual infobox/table shapes) will be refined against live `simplewiki` holes during the Phase 5 beta.
+- **jsdom quirk:** this toolchain's jsdom ships a method-less `localStorage` stub; a tiny `web/test/setup.ts` polyfill gives tests a working one. The app itself tolerates a broken/disabled store via try/catch.
+- **Not in Phase 3** (plan section 7 lists them, Phase 4 builds them): the Archive, Stats and Privacy pages. Phase 3 is the daily play experience (Tee/Play/Holed) + how-to.
+
 ## Open questions for the owner
 
 | Question                                        | Answer                                                                                      |
