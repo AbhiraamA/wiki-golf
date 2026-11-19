@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -13,14 +14,21 @@ from .fnv import title_shard
 from .graph import Graph
 from .pick import Hole
 
+# idx -> short description (""); passed in so the snapshot/pageview lookups live in the CLI.
+Describe = Callable[[int], str]
+
 
 def _write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
 
-def page_ref(g: Graph, idx: int) -> dict:
-    return {"idx": int(idx), "title": g.titles[idx], "revId": int(g.rev_ids[idx])}
+def page_ref(g: Graph, idx: int, describe: Describe | None = None) -> dict:
+    ref = {"idx": int(idx), "title": g.titles[idx], "revId": int(g.rev_ids[idx])}
+    desc = describe(idx) if describe else ""
+    if desc:
+        ref["shortDesc"] = desc
+    return ref
 
 
 def write_snapshot(g: Graph, out: Path, shard_count: int) -> list[Path]:
@@ -57,7 +65,9 @@ def write_snapshot(g: Graph, out: Path, shard_count: int) -> list[Path]:
     return files
 
 
-def hole_record(g: Graph, h: Hole, status: str = "queued") -> dict:
+def hole_record(
+    g: Graph, h: Hole, status: str = "queued", describe: Describe | None = None
+) -> dict:
     record = {
         "holeNo": h.hole_no,
         "date": h.date,
@@ -66,8 +76,8 @@ def hole_record(g: Graph, h: Hole, status: str = "queued") -> dict:
         "par": h.par,
         "pickUp": h.pick_up,
         "shortest": h.shortest,
-        "start": page_ref(g, h.start),
-        "target": page_ref(g, h.target),
+        "start": page_ref(g, h.start, describe),
+        "target": page_ref(g, h.target, describe),
         "difficulty": h.difficulty,
         "status": status,
     }
@@ -89,13 +99,15 @@ def index_entry(record: dict) -> dict:
     }
 
 
-def write_holes(g: Graph, holes: list[Hole], out: Path) -> list[tuple[dict, Path, Path]]:
+def write_holes(
+    g: Graph, holes: list[Hole], out: Path, describe: Describe | None = None
+) -> list[tuple[dict, Path, Path]]:
     # Holes and distances live under the wiki's own prefix (e.g. simplewiki/holes/…) so that
     # one wiki's dates never collide with another's. Snapshots keep their own prefix because
     # `snap` already names the wiki (e.g. simplewiki-20261101).
     written = []
     for h in holes:
-        record = hole_record(g, h)
+        record = hole_record(g, h, describe=describe)
         hp = out / g.wiki / "holes" / f"{h.date}.json"
         _write_json(hp, record)
         dp = out / g.wiki / "distances" / f"{h.date}.bin"

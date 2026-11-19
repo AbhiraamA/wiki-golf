@@ -59,6 +59,22 @@ def test_disambiguation_from_page_props(graph):
     assert int(graph.disambig.sum()) == 1
 
 
+def test_langlinks_counted_and_english_title_kept(graph):
+    assert graph.langlinks[idx(graph, "Moon")] == 7
+    assert graph.langlinks[idx(graph, "Apollo_11")] == 2
+    assert graph.langlinks[idx(graph, "1969")] == 0  # a year page: no interlanguage links
+    # The English title (via the 'en' langlink) is underscored and used for pageview lookups.
+    assert graph.en_title[idx(graph, "Moon")] == "Moon"
+    assert graph.en_title[idx(graph, "Giant_squid")] == "Giant_squid"  # "Giant squid" normalised
+
+
+def test_short_description_and_qid_from_page_props(graph):
+    assert graph.shortdesc[idx(graph, "Octopus")] == "Eight-limbed sea mollusc"
+    assert graph.shortdesc[idx(graph, "Apollo_11")].startswith("First crewed Moon landing")
+    assert graph.shortdesc[idx(graph, "Moon")] == ""  # no local short description
+    assert graph.qid[idx(graph, "Octopus")] == "Q1"
+
+
 def test_remove_edge(graph):
     u, v = idx(graph, "Moon"), idx(graph, "Apollo_11")
     graph.remove_edge(u, v)

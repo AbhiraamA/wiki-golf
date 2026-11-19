@@ -8,9 +8,10 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .dumps import DumpSource
-from .sqlparse import iter_rows, text
+from .sqlparse import iter_rows, text, unquote
 
 MAX_REDIRECT_HOPS = 2
+SHORTDESC_MAX = 160  # keep descriptions short enough for the tee/target UI
 
 
 @dataclass
@@ -22,6 +23,10 @@ class Graph:
     rev_ids: np.ndarray  # idx -> revision id (page_latest)
     page_len: np.ndarray  # idx -> page length in bytes
     disambig: np.ndarray  # idx -> bool
+    langlinks: np.ndarray  # idx -> interlanguage-link count (the target fame signal)
+    shortdesc: list[str]  # idx -> local wikibase-shortdesc, "" if none
+    qid: list[str]  # idx -> Wikidata item id (e.g. "Q42"), "" if none
+    en_title: list[str]  # idx -> English Wikipedia title via the 'en' langlink, "" if none
     title_to_idx: dict[str, int]  # articles and redirects
     fwd_off: np.ndarray
     fwd_tgt: np.ndarray
@@ -56,6 +61,23 @@ class Graph:
         a, b = self.rev_off[v], self.rev_off[v + 1]
         seg = self.rev_tgt[a:b]
         seg[seg == u] = -1
+
+
+def _resolve_ids(page_ids: np.ndarray, ids: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """(idx positions, mask) for the page_ids that are articles. page_ids must be sorted."""
+    n = len(page_ids)
+    pos = np.searchsorted(page_ids, ids)
+    ok = (pos < n) & (page_ids[np.minimum(pos, max(n - 1, 0))] == ids)
+    return pos, ok
+
+
+def _place_strings(page_ids: np.ndarray, ids: list[int], vals: list[str], out: list[str]) -> None:
+    """Write each value into `out` at the article index of its page id (unmatched ids skipped)."""
+    if not ids:
+        return
+    pos, ok = _resolve_ids(page_ids, np.asarray(ids, dtype=np.int64))
+    for i in np.flatnonzero(ok).tolist():
+        out[int(pos[i])] = vals[i]
 
 
 def csr(src: np.ndarray, dst: np.ndarray, n: int) -> tuple[np.ndarray, np.ndarray]:
@@ -118,18 +140,60 @@ def build_graph(source: DumpSource, log=print) -> Graph:
     timings["redirect"] = time.monotonic() - t0
     log(f"redirect: {len(title_to_idx) - n} redirect titles resolved")
 
-    # 3. Disambiguation pages (page_props).
+    # 3. Page properties in one streaming pass: disambiguation flag, short description
+    # (wikibase-shortdesc) and Wikidata id (wikibase_item, used only to fetch a fallback
+    # description for the chosen holes).
     t0 = time.monotonic()
     disambig = np.zeros(n, dtype=bool)
+    shortdesc = [""] * n
+    qid = [""] * n
+    dis_ids: list[int] = []
+    sd_ids: list[int] = []
+    sd_vals: list[str] = []
+    qid_ids: list[int] = []
+    qid_vals: list[str] = []
     with source.open("page_props") as f:
-        where = {"pp_propname": b"'disambiguation'"}
-        for batch in iter_rows(f, "page_props", ["pp_page"], where=where):
-            ids = np.asarray([int(r[0]) for r in batch], dtype=np.int64)
-            pos = np.searchsorted(page_ids, ids)
-            ok = (pos < n) & (page_ids[np.minimum(pos, n - 1)] == ids)
-            disambig[pos[ok]] = True
+        for batch in iter_rows(f, "page_props", ["pp_page", "pp_propname", "pp_value"]):
+            for pid, propname, value in batch:
+                name = unquote(propname)
+                if name == b"disambiguation":
+                    dis_ids.append(int(pid))
+                elif name == b"wikibase-shortdesc":
+                    sd_ids.append(int(pid))
+                    sd_vals.append(text(value)[:SHORTDESC_MAX])
+                elif name == b"wikibase_item":
+                    qid_ids.append(int(pid))
+                    qid_vals.append(text(value))
+    if dis_ids:
+        pos, ok = _resolve_ids(page_ids, np.asarray(dis_ids, dtype=np.int64))
+        disambig[pos[ok]] = True
+    _place_strings(page_ids, sd_ids, sd_vals, shortdesc)
+    _place_strings(page_ids, qid_ids, qid_vals, qid)
     timings["page_props"] = time.monotonic() - t0
-    log(f"page_props: {int(disambig.sum())} disambiguation pages")
+    log(
+        f"page_props: {int(disambig.sum())} disambiguation, "
+        f"{sum(1 for s in shortdesc if s)} short descriptions"
+    )
+
+    # 3b. Interlanguage links: count per article (the fame signal) and keep the English title so
+    # pageviews can be looked up on English Wikipedia (Simple English traffic is too small to rank).
+    t0 = time.monotonic()
+    langlinks = np.zeros(n, dtype=np.int64)
+    en_title = [""] * n
+    en_ids: list[int] = []
+    en_titles: list[str] = []
+    with source.open("langlinks") as f:
+        for batch in iter_rows(f, "langlinks", ["ll_from", "ll_lang", "ll_title"]):
+            froms = np.fromiter((int(r[0]) for r in batch), np.int64, len(batch))
+            pos, ok = _resolve_ids(page_ids, froms)
+            np.add.at(langlinks, pos[ok], 1)
+            for frm, lang_b, title_b in batch:
+                if unquote(lang_b) == b"en":
+                    en_ids.append(int(frm))
+                    en_titles.append(text(title_b).replace(" ", "_"))
+    _place_strings(page_ids, en_ids, en_titles, en_title)
+    timings["langlinks"] = time.monotonic() - t0
+    log(f"langlinks: {int((langlinks > 0).sum())} articles with interlanguage links")
 
     # 4. Link targets in namespace 0 -> article index.
     t0 = time.monotonic()
@@ -180,6 +244,10 @@ def build_graph(source: DumpSource, log=print) -> Graph:
         rev_ids=rev_ids,
         page_len=page_len,
         disambig=disambig,
+        langlinks=langlinks,
+        shortdesc=shortdesc,
+        qid=qid,
+        en_title=en_title,
         title_to_idx=title_to_idx,
         fwd_off=fwd_off,
         fwd_tgt=fwd_tgt,

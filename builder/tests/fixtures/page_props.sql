@@ -12,4 +12,6 @@ CREATE TABLE `page_props` (
 INSERT INTO `page_props` VALUES
 (18,'disambiguation','',NULL),
 (1,'wikibase_item','Q1',NULL),
+(1,'wikibase-shortdesc','Eight-limbed sea mollusc',NULL),
+(12,'wikibase-shortdesc','First crewed Moon landing, 1969',NULL),
 (12,'page_image_free','Apollo_11_(photo).jpg',NULL);

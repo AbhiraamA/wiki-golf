@@ -36,9 +36,24 @@ def test_title_exclusions():
         "3_March",
         "21st_century",
         "Mercury_(disambiguation)",
+        "Germany_at_the_2008_Summer_Olympics",
+        "Athletics_at_the_2012_Summer_Paralympics",
+        "ISO_4217",
+        "ISO/IEC_27001",
+        "Wikiquote",
+        "Wikimedia_Foundation",
+        "MediaWiki",
     ]:
         assert title_excluded(t, set()), t
-    for t in ["Octopus", "Apollo_11", "Marching_band", "1999_in_film", "Mayor"]:
+    for t in [
+        "Octopus",
+        "Apollo_11",
+        "Marching_band",
+        "1999_in_film",
+        "Mayor",
+        "Isolation",
+        "WikiLeaks",  # not a Wikimedia project
+    ]:
         assert not title_excluded(t, set()), t
     assert title_excluded("Some_Topic", {"some_topic"})
 

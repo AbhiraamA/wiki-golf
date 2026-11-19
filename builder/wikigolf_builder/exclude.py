@@ -25,6 +25,18 @@ _PATTERNS = [
     re.compile(r"_\(disambiguation\)$", re.I),
     # Music works by their disambiguator: "(album)", "(1999 song)", "(Beatles album)", "(EP)".
     re.compile(rf"_\([^)]*\b({_MUSIC})\)$", re.I),
+    # "X at the Olympics" results pages: "Germany_at_the_2008_Summer_Olympics", "Athletics_at_the_…
+    # Olympic_Games", Paralympics. Fine mid-route, but a dull start or target.
+    re.compile(r"_at_the_.*(Olympic|Paralympic)", re.I),
+    # Technical standards/codes: "ISO_4217", "ISO/IEC_27001", "ISO_8601". High fame signals
+    # (linked everywhere, many langlinks) but no one recognises the number and they aren't aimable.
+    re.compile(r"^ISO(/IEC)?[_ ]?\d", re.I),
+    # Wikimedia's own projects: linked from everywhere (huge fame signals) but self-referential and
+    # unrecognisable to most players. "Wikipedia" the article is excluded too (meta for this game).
+    re.compile(
+        r"^(Wikipedia|Wiktionary|Wikiquote|Wikisource|Wikibooks|Wikinews|Wikiversity"
+        r"|Wikivoyage|Wikidata|Wikispecies|Wikifunctions|MediaWiki|Wikimedia(_.*)?)$"
+    ),
 ]
 
 

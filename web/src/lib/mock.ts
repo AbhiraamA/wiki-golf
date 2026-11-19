@@ -200,7 +200,12 @@ function pageHtml(key: string): string {
 }
 
 function ref(key: string) {
-  return { idx: idxOf(key), title: PAGES[key]!.title.replace(/ /g, '_'), revId: 1000 + idxOf(key) };
+  return {
+    idx: idxOf(key),
+    title: PAGES[key]!.title.replace(/ /g, '_'),
+    revId: 1000 + idxOf(key),
+    shortDesc: PAGES[key]!.desc,
+  };
 }
 
 function lie(from: number, to: number): Lie {
