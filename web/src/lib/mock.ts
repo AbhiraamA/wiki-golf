@@ -5,7 +5,7 @@ HTML so the real article parser and game flow exercise end to end without the Wo
 */
 
 import { pickUpAt, resultWord, type HoleInfo, type Lie } from '@wiki-golf/shared';
-import { ApiError } from './api';
+import { ApiError } from './errors';
 import type {
   Api,
   CaddieOutcome,

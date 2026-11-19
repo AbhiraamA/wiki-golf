@@ -1,6 +1,9 @@
 /** Typed client for the Worker API (plan.md §6). In dev with VITE_MOCK it uses an in-memory mock. */
 
 import type { HoleInfo, Lie, PageRef } from '@wiki-golf/shared';
+import { ApiError } from './errors';
+
+export { ApiError };
 
 export interface PageContent extends PageRef {
   html: string;
@@ -73,15 +76,6 @@ export interface Api {
   me(): Promise<Me>;
   backupCode(): Promise<{ code: string }>;
   restore(code: string): Promise<Restored>;
-}
-
-export class ApiError extends Error {
-  constructor(
-    public code: string,
-    public status: number,
-  ) {
-    super(code);
-  }
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
