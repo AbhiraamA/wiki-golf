@@ -5,6 +5,7 @@ HTML so the real article parser and game flow exercise end to end without the Wo
 */
 
 import { pickUpAt, resultWord, type HoleInfo, type Lie } from '@wiki-golf/shared';
+import { ApiError } from './errors';
 import type {
   Api,
   CaddieOutcome,
@@ -333,5 +334,20 @@ export const mockApi: Api = {
   },
   async me() {
     return delay({ streakCurrent: 9, streakBest: 14, gamesPlayed: 42, lastDate: null });
+  },
+  async backupCode() {
+    return delay({ code: 'maple-fox-orbit-9' });
+  },
+  async restore(code: string) {
+    if (!/^[a-z]+-[a-z]+-[a-z]+-\d$/.test(code.trim().toLowerCase())) {
+      throw new ApiError('invalid_code', 404);
+    }
+    return delay({
+      restored: true,
+      streakCurrent: 9,
+      streakBest: 14,
+      gamesPlayed: 42,
+      lastDate: null,
+    });
   },
 };

@@ -1,6 +1,9 @@
 /** Typed client for the Worker API (plan.md §6). In dev with VITE_MOCK it uses an in-memory mock. */
 
 import type { HoleInfo, Lie, PageRef } from '@wiki-golf/shared';
+import { ApiError } from './errors';
+
+export { ApiError };
 
 export interface PageContent extends PageRef {
   html: string;
@@ -55,6 +58,10 @@ export interface Me {
   lastDate: string | null;
 }
 
+export interface Restored extends Me {
+  restored: boolean;
+}
+
 export interface Api {
   hole(date: string): Promise<HoleInfo>;
   page(title: string, date: string): Promise<PageContent>;
@@ -67,15 +74,8 @@ export interface Api {
   caddie(roundId: string, linkTitles: string[]): Promise<CaddieOutcome>;
   result(roundId: string): Promise<RoundResult>;
   me(): Promise<Me>;
-}
-
-export class ApiError extends Error {
-  constructor(
-    public code: string,
-    public status: number,
-  ) {
-    super(code);
-  }
+  backupCode(): Promise<{ code: string }>;
+  restore(code: string): Promise<Restored>;
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -99,6 +99,8 @@ const liveApi: Api = {
   caddie: (id, linkTitles) => call('POST', `/rounds/${id}/caddie`, { linkTitles }),
   result: (id) => call('GET', `/rounds/${id}/result`),
   me: () => call('GET', '/me'),
+  backupCode: () => call('POST', '/backup-code', {}),
+  restore: (code) => call('POST', '/restore', { code }),
 };
 
 // Vite statically replaces import.meta.env.VITE_MOCK; the mock is tree-shaken out of prod builds.

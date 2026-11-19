@@ -8,8 +8,15 @@ from pathlib import Path
 import numpy as np
 
 _MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
-# Parenthetical disambiguators for music works, e.g. "Thriller_(album)", "Hello_(2015_song)".
-_MUSIC = "album|song|single|EP|soundtrack|mixtape|opera|musical"
+# Parenthetical disambiguators for a single work, e.g. "Thriller_(album)", "Hello_(2015_song)",
+# "Pilot_(Lost_episode)". The artist/show/series itself is a fine endpoint; one work is not.
+_MUSIC = "album|song|single|EP|soundtrack|mixtape|opera|musical|episode|TV series|season"
+# Topic-of-place index pages: "Sport_in_Brazil", "Economy_of_France", "Music_of_Japan".
+_TOPIC_OF_PLACE = (
+    "Sport|Music|Culture|Economy|Education|Religion|Tourism|Transport|Transportation|Politics"
+    "|Geography|History|Demographics|Cinema|Television|Agriculture|Healthcare|Health|Crime"
+    "|Climate|Cuisine|Media|Military|Flag|Coat of arms"
+)
 _PATTERNS = [
     re.compile(r"^Lists?_of_", re.I),
     # Navigational/index pages: "Index of…", "Glossary of…", "Outline of…", "Timeline of…".
@@ -19,12 +26,16 @@ _PATTERNS = [
     re.compile(r"^\d{1,4}(_(BC|BCE|AD|CE))?$"),  # years: 1999, 44_BC
     re.compile(r"^(AD_)\d{1,4}$"),
     re.compile(r"^\d{1,4}0s(_(BC|BCE))?$"),  # decades: 1990s
+    # "X in Y" index pages: "1999_in_film", "2020_in_science", "Sport_in_Brazil".
+    re.compile(r"^\d{3,4}s?_in_", re.I),  # year/decade in a field
+    re.compile(rf"^({_TOPIC_OF_PLACE})_(in|of)_", re.I),  # topic of a place
     re.compile(r"^\d{1,2}(st|nd|rd|th)_(century|millennium)(_(BC|BCE))?$", re.I),
     re.compile(rf"^({_MONTHS})(_\d{{1,2}})?(,?_\d{{1,4}})?$"),  # March, March_3, March_1999
     re.compile(rf"^\d{{1,2}}_({_MONTHS})$"),  # 3_March
     re.compile(r"_\(disambiguation\)$", re.I),
-    # Music works by their disambiguator: "(album)", "(1999 song)", "(Beatles album)", "(EP)".
-    re.compile(rf"_\([^)]*\b({_MUSIC})\)$", re.I),
+    # Single works by their disambiguator: "(album)", "(1999 song)", "(Beatles album)", "(EP)",
+    # "(Lost_episode)". A leading separator (space/underscore) or none; `\b` would miss "_episode".
+    re.compile(rf"_\(([^)]*[\s_])?({_MUSIC})\)$", re.I),
     # "X at the Olympics" results pages: "Germany_at_the_2008_Summer_Olympics", "Athletics_at_the_…
     # Olympic_Games", Paralympics. Fine mid-route, but a dull start or target.
     re.compile(r"_at_the_.*(Olympic|Paralympic)", re.I),

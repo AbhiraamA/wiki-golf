@@ -114,6 +114,127 @@ Owner decision after reviewing the first fame filter: inlinks are inflated by na
 - **Local review (2026-11-18, done by Claude via `wrangler login`, never in logs/commits):** of 30 rebuilt simplewiki targets, ~26 were clearly strong (countries, famous people, concepts, foods, landmarks) with good Wikidata descriptions. One dud — `ISO 4217` — had high fame signals (linked from every currency page) but is unrecognisable and unaimable, so added an **ISO-standard exclusion** (`^ISO(/IEC)?\d`), which generalises to ISO 3166/8601/639 etc. A second review of the next rebuild caught `Wikiquote` — a Wikimedia sister project, equally unrecognisable/self-referential — so also added a **Wikimedia-projects exclusion** (Wiktionary, Wikisource, Wikidata, MediaWiki, Wikimedia Foundation, and `Wikipedia` itself). Borderline-but-aimable targets (a head of state, a world religion, a historical state, cultural icons, famous athletes) were kept for variety. Kept the **30k enwiki views floor** — it gives a good famous/aimable ratio without starving the long par-6/7 holes. (Also fixed the Olympics exclusion regex: `\b` never matched before an underscore.)
 - All builder + web + worker tests, typecheck, lint and format pass.
 
+## Phase 4 — Scores, streaks and privacy (in progress)
+
+- [x] Migration `0002_finish_tracking.sql`: `rounds.recorded_at`, so a finished round is folded into
+      durable state exactly once.
+- [x] `worker/src/lib/stats.ts`:
+  - `recordFinish` — a conditional UPDATE claims the round (`recorded_at` was null); only the claimer
+    bumps `games_played`, advances the daily streak (ranked only) and increments the hole's per-page
+    finisher tallies. Replays and double-submits never double-count. Wired into `/shots` and
+    `/caddie` on finish.
+  - `aggregateHoleStats` — writes `hole_stats` (finisher count + score spread) per date; once a date
+    has ≥ `RARITY_MIN_FINISHERS` (100) finishers, sets each finisher's `rarity` = percentage who
+    scored that well or better.
+  - `runRetention` — deletes rounds/shots and per-hole tallies older than `RETENTION_DAYS` (31);
+    players are kept.
+  - `runScheduled(cron, …)` dispatches: the daily `41 3 * * *` run prunes, the 10-minute run
+    aggregates.
+- [x] Cron triggers in `wrangler.jsonc`: `["*/10 * * * *", "41 3 * * *"]`; `scheduled()` in
+      `index.ts` calls `runScheduled`.
+- [x] Tests (`worker/test/stats.test.ts`): record-once + streak advance/reset + practice-only
+      counting; rarity stays pending below 100 finishers then computes (done-when check); retention
+      deletes 31-day-old rows and keeps the player (done-when check).
+
+### Backup codes (worker)
+
+- [x] Migration `0003_rate_limits.sql`: a PII-free throttle table (bucket/count/reset_at), pruned by
+      the retention cron.
+- [x] `worker/src/lib/backup.ts`: `createBackupCode` issues a 4-word code (e.g. `maple-fox-orbit-9`)
+      and stores only its SHA-256 hash in `players.backup_hash`; `restoreByCode` matches a code's
+      hash to a player. A ~128-word list gives ~21M combinations.
+- [x] `POST /api/backup-code` (requires a player) and `POST /api/restore` (`{code}` → re-issues that
+      player's cookie). Restore is throttled by a global per-minute cap — no IP or other identifier
+      is stored, consistent with the privacy page; the code's entropy is the real lock.
+- [x] Tests (`worker/test/backup.test.ts`): round-trip restore to a fresh browser, bad/unknown
+      codes, the no-player case, and the throttle (asserts only bucket/count/reset_at are stored).
+
+### Web screens (Archive, Stats, Privacy)
+
+- [x] Lightweight view navigation added to `game.svelte.ts` (`view` state + `openView`/`closeView`)
+      and a menu in the Tee topbar; no router needed. Play/Holed still take over the screen.
+- [x] **Archive** (`screens/Archive.svelte`): lists past holes (HOLE_EPOCH..yesterday, fetched per
+      date, 404s skipped), shows the stored result if played, and plays any date as a practice round
+      (`game.playDate`). Empty until the first live day (today is before the placeholder epoch).
+- [x] **Stats** (`screens/Stats.svelte`): streak/best/games from `/api/me`; average vs par and
+      this-week list computed from local history; create-backup-code and restore UI.
+- [x] **Privacy** (`screens/Privacy.svelte`): the §8 table and plain-language statements (no IPs,
+      no trackers), contact email, app version.
+- [x] Date math moved to a plain `lib/dates.ts` (keeps `Date` out of the runes module per the
+      svelte lint). Mock backend extended with `backupCode`/`restore` so the dev/screenshot build
+      stays complete. Web typecheck, lint, tests and build pass (prod JS ~31 KB gzipped).
+- Not yet visually screenshotted at 390/1280 — verified by typecheck/lint/tests/build only.
+
+## Sensitive-topic target filter (2026-11-18)
+
+Owner decision: famous-but-unsavoury articles (Charles Manson, Methamphetamine, Illuminati) were
+being chosen as targets; fame signals don't exclude them. Added a target-only sensitive-topic filter
+(the destination is shown by name on the tee; a sensitive _mid-route_ page is still fine).
+
+- **`sensitive.py`** (pure, offline-testable): a set of verified Wikidata QIDs for
+  `instance of` / `subclass of` / `occupation` (serial killer, murderer, criminal, rapist, war
+  criminal, cult leader, drug, psychoactive drug, conspiracy theory, secret society, terrorist
+  organisation, drug cartel) plus description-text patterns (murderer/criminal, drug, conspiracy/
+  secret society, terrorism, sexual topic). Patterns avoid common false positives ("stimulant drug"
+  not bare "stimulant"; "secret society" not "society").
+- **`enrich.make_sensitivity`**: local short description offline; when online also fetches the
+  Wikidata description + claims. Degrades quietly to "not sensitive" on any network trouble.
+- **`pick.Picker`**: checks sensitivity lazily for targets it actually tries (one Wikidata call per
+  attempted target, not per shortlisted one); themed targets are owner-chosen and skip the filter.
+  `--no-sensitive` disables it. The public job summary reports only an aggregate "Sensitive targets
+  skipped: N" — no titles.
+- **Blocklist backstop**: verified against live Wikidata that Manson (occupation=criminal) and the
+  Illuminati (P31=secret society) are caught automatically, but **Methamphetamine's** Wikidata item
+  is merely "group of stereoisomers" with no drug claim — so hard drugs are listed by name in
+  `blocklist.txt`, alongside well-known murderers, conspiracy theories and the three named examples.
+- Tested: `tests/test_sensitive.py` (the three examples' real data; false-positive guards) and two
+  `tests/test_pick.py` cases (a sensitive target is skipped; a themed target ignores the filter).
+- Affected approved simplewiki holes to rebuild: **2026-11-29** (Methamphetamine), **2026-12-01**
+  (Charles Manson), **2026-12-16** (Illuminati).
+
+## Content policy for endpoints (`builder/CONTENT_GUIDE.md`, 2026-11-19)
+
+The owner added `builder/CONTENT_GUIDE.md` (tiers A–D for what may be a start/target) as the content
+policy. Implemented the rules the builder didn't yet enforce, layered cheapest-first as the guide
+directs (blocklist → title patterns → Wikidata claims → short-description keywords → agent review).
+
+- **`sensitive.py`** generalised from the target-only sensitive filter into a role-aware policy:
+  - `target_policy_reason` and `start_policy_reason` take already-extracted Wikidata fields + the
+    short description, so the module stays pure/unit-tested.
+  - New rules: **convicted-of** (`P1399` any value → Tier A, both roles); **modern politician**
+    (occupation politician `Q82955` or any position held `P39`, and living or died ≥ 1950 → target
+    only — settled figures like Disraeli/Napoleon/Vespasian pass); **recent death** (`P570` within
+    **12 months** → both roles); **disputed/occupied territory & states with limited recognition**
+    (`Q15239622`/`Q2577883`/`Q10711424` → target only); **hate group** (`Q3233801`) and **genocide**
+    (`Q41397`) classes; expanded description keywords (massacre, genocide, mass shooting, hate/
+    extremism, suicide/self-harm). All QIDs verified against the live Wikidata API.
+  - Note: the guide says 90 days for recent deaths; the owner asked for **12 months**, so that is
+    what's enforced (`RECENT_DEATH_DAYS = 365`).
+- **`enrich.Policy` / `make_policy`**: one cached Wikidata fetch per item (descriptions + P31/P279/
+  P106/P39/P1399/P570), exposing `target_reason`/`start_reason`. `fields_by_title` fetches the same
+  by site+title (no dump needed) for the review command. Degrades quietly to "allowed" offline/on
+  network trouble (local short description still checked).
+- **`exclude.py`** title patterns added: `"X in Y"`/`"Topic of Place"` index pages and `(episode)`/
+  `(TV series)`/`(season)` single works. Fixed the `\b`-before-underscore gap in the work
+  disambiguator (same bug class as the old Olympics regex).
+- **`blocklist.txt`**: disputed-territories backstop section (Abkhazia, South Ossetia, Transnistria,
+  Northern Cyprus, Artsakh/Nagorno-Karabakh, Somaliland, Western Sahara).
+- **`cli.py check`**: re-checks R2 holes against the policy (start + target), prints PASS/FAIL with
+  reasons for local review, exits non-zero if any fail. This is the guide's final review step — run
+  on every batch before `approve`.
+- **Picker** now uses `make_policy(...).target_reason` as its target filter (was the narrower
+  sensitive check); starts rely on the offline blocklist/patterns (online per-start checks would be
+  too costly). Themed targets still skip the filter.
+- Re-checked all 30 approved simplewiki holes with `check` and re-rolled every failure (CI build on
+  the pinned `simplewiki-20261101` snapshot, then re-reviewed and re-approved). Over three rounds:
+  2026-11-19 Abkhazia→(Aisha, blocklisted)→**Great Britain**; 2026-11-25 Dilma Rousseff→**Siberia**;
+  2026-12-01 Che Guevara→**Sleeping Beauty (1959 film)**; 2026-12-14 Tony Blair→**Copyright**;
+  2026-12-18 Boxer Rebellion→**George Washington** (settled history, d. 1799, passes). Final state:
+  30/30 approved and passing `check`.
+- **Known gap / review reliance:** religious figures and "historical dictators" have no clean
+  Wikidata class, so they're caught by the blocklist + the `check`/`show` review step, not
+  automatically. Start-side enforcement is offline (blocklist + title patterns) only.
+
 ## Open questions for the owner
 
 | Question                                        | Answer                                                                                      |

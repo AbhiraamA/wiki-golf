@@ -118,6 +118,7 @@ class Picker:
         history: History,
         fetch_html: Callable[[int], str] | None,
         view_lookup: Callable[[str], int | None] | None = None,
+        sensitive: Callable[[int], str | None] | None = None,
         log=print,
     ) -> None:
         self.g = g
@@ -125,6 +126,9 @@ class Picker:
         self.history = history
         self.fetch_html = fetch_html
         self.view_lookup = view_lookup  # en title -> monthly pageviews (None if no such article)
+        # idx -> reason if a target is a sensitive topic (murderer, drug, conspiracy theory, …).
+        self.sensitive = sensitive
+        self.sensitive_dropped = 0  # count only; reasons/titles stay out of the public log
         self.log = log
         # Fame uses interlanguage-link count, not inlinks: navboxes inflate inlinks but not the
         # number of other-language Wikipedias that cover a topic. Targets are in the top
@@ -142,10 +146,12 @@ class Picker:
             if self.view_lookup is not None
             else " (pageview check off)"
         )
+        sens = "on" if self.sensitive is not None else "off"
         return (
             f"fame filter: targets = top {self.s.target_langlink_fraction:.0%} by interlanguage "
             f"links (>= {self.langlink_thresh} langlinks, {int(self.target_ok.sum())} articles)"
-            f"{views}; starts = {int(self.start_ok.sum())} readable articles"
+            f"{views}; starts = {int(self.start_ok.sum())} readable articles; "
+            f"sensitive-target filter {sens}"
         )
 
     def _famous_enough(self, idx: int) -> bool:
@@ -156,6 +162,15 @@ class Picker:
         if views is None:  # no English article for this title: judge on langlinks alone
             return True
         return views >= self.s.min_target_views
+
+    def _sensitive_target(self, idx: int) -> bool:
+        """True if the target is a sensitive topic (and should not be a destination)."""
+        if self.sensitive is None:
+            return False
+        if self.sensitive(idx) is not None:
+            self.sensitive_dropped += 1
+            return True
+        return False
 
     def _fresh_target(self, idx: int, date: str) -> bool:
         window = self.s.target_repeat_window_days
@@ -180,9 +195,16 @@ class Picker:
                 return pool[0], used_d
         return None
 
-    def _one_candidate(self, targets, dist_list, date, rng):
-        """First (start, target, dist, used_d) over `targets` with a start at a `dist_list` click."""
+    def _one_candidate(self, targets, dist_list, date, rng, check_sensitive=True):
+        """First (start, target, dist, used_d) over `targets` with a start at a `dist_list` click.
+
+        Sensitivity is checked lazily here, only for targets actually tried (in shuffled order),
+        so a build makes a Wikidata call per attempted target, not per shortlisted one. Themed
+        targets are owner-chosen, so the caller passes check_sensitive=False.
+        """
         for t in targets:
+            if check_sensitive and self._sensitive_target(t):
+                continue
             dist = distances_to(t, self.g.rev_off, self.g.rev_tgt, self.g.n)
             found = self._find_start(t, dist, dist_list, date, rng)
             if found is not None:
@@ -261,7 +283,7 @@ class Picker:
         dist_list = _widen(d0, self.s.theme_par_widen)
         badge = theme.badge.to_json() if theme.badge else None
         for _ in range(self.s.max_verify_attempts):
-            cand = self._one_candidate(targets, dist_list, date, rng)
+            cand = self._one_candidate(targets, dist_list, date, rng, check_sensitive=False)
             if cand is None:
                 self.log(
                     f"{date}: no well-known start for the themed hole within par "

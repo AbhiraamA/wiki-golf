@@ -2,19 +2,22 @@
 the current page, strokes and lie for rendering, and drives the screen transitions. */
 
 import { isLongHole, localDate, weekday, type HoleInfo, type Lie } from '@wiki-golf/shared';
-import { api, type Me, type RoundResult } from './api';
+import { api, ApiError, type Me, type RoundResult } from './api';
 import { parseArticle } from './article/parse';
 import type { ArticleModel } from './article/types';
-import { savedResult, saveResult, toStored } from './store';
+import { weekStart } from './dates';
+import { allResults, savedResult, saveResult, toStored, type StoredResult } from './store';
 
 export type TagKind = 'start' | 'dist' | Lie | 'mulligan' | 'caddie';
 export type Screen = 'tee' | 'play' | 'holed';
+export type View = 'home' | 'archive' | 'stats' | 'privacy';
 
 const TAG_DELAY = 2200;
 
 export class Game {
   date = localDate();
   screen = $state<Screen>('tee');
+  view = $state<View>('home');
   loading = $state(true);
   error = $state<string | null>(null);
 
@@ -214,7 +217,66 @@ export class Game {
 
   backToTee(): void {
     this.screen = 'tee';
+    this.view = 'home';
+    this.date = localDate();
     void this.init();
+  }
+
+  // ---- navigation (Archive / Stats / Privacy) -------------------------------
+
+  openView(v: View): void {
+    this.view = v;
+  }
+
+  closeView(): void {
+    this.view = 'home';
+  }
+
+  /** Start a practice round on a past date from the Archive. Past dates are always practice. */
+  async playDate(date: string): Promise<void> {
+    this.view = 'home';
+    this.date = date;
+    await this.init();
+    if (this.hole) await this.teeOff(true);
+  }
+
+  // ---- Stats data -----------------------------------------------------------
+
+  /** Ranked finishes this week (Mon–Sun) and the average strokes over/under par, from local history. */
+  stats(): { avgToPar: number | null; played: number; thisWeek: StoredResult[] } {
+    const ranked = allResults().filter((r) => r.ranked && r.holed);
+    const played = ranked.length;
+    const avgToPar =
+      played === 0 ? null : ranked.reduce((s, r) => s + (r.strokes - r.par), 0) / played;
+    const monday = weekStart(localDate());
+    const thisWeek = ranked
+      .filter((r) => r.date >= monday)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return { avgToPar, played, thisWeek };
+  }
+
+  // ---- Backup code ----------------------------------------------------------
+
+  async makeBackupCode(): Promise<string | null> {
+    try {
+      return (await api.backupCode()).code;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Restore progress from a backup code. Returns an error message, or null on success. */
+  async restore(code: string): Promise<string | null> {
+    const trimmed = code.trim();
+    if (!trimmed) return 'Enter your backup code.';
+    try {
+      const me = await api.restore(trimmed);
+      this.me = me;
+      return null;
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 429) return 'Too many tries. Wait a minute.';
+      return 'That code did not match. Check it and try again.';
+    }
   }
 
   /** Dev/screenshot helper (mock only): drive the game to a screen. */

@@ -43,16 +43,22 @@ def test_title_exclusions():
         "Wikiquote",
         "Wikimedia_Foundation",
         "MediaWiki",
+        # "X in Y" / "topic of place" index pages and single works (CONTENT_GUIDE Tier C).
+        "1999_in_film",
+        "2020_in_science",
+        "Sport_in_Brazil",
+        "Economy_of_France",
+        "Pilot_(Lost_episode)",
     ]:
         assert title_excluded(t, set()), t
     for t in [
         "Octopus",
         "Apollo_11",
         "Marching_band",
-        "1999_in_film",
         "Mayor",
         "Isolation",
         "WikiLeaks",  # not a Wikimedia project
+        "Fin_whale",  # a plain topic, not "X in/of Y"
     ]:
         assert not title_excluded(t, set()), t
     assert title_excluded("Some_Topic", {"some_topic"})
