@@ -235,6 +235,20 @@ directs (blocklist → title patterns → Wikidata claims → short-description 
   Wikidata class, so they're caught by the blocklist + the `check`/`show` review step, not
   automatically. Start-side enforcement is offline (blocklist + title patterns) only.
 
+## Phase 5 — Deploy and beta (in progress)
+
+- [x] `.github/workflows/deploy.yml`: on push to `main` (and manual dispatch) — `npm ci`, build the
+      front end, `wrangler d1 migrations apply wiki-golf --remote`, `wrangler deploy --var
+    ENVIRONMENT:production`, then push the `COOKIE_SECRET` repo secret to the Worker with
+      `wrangler secret put` (every deploy, to stay in sync / support rotation).
+- [x] Production fail-closed guard (`worker/src/lib/guard.ts`): a `*` middleware returns 503 for
+      every request when `ENVIRONMENT=production` and `COOKIE_SECRET` is missing or still the public
+      dev default, so the site never serves with forgeable identity cookies. Unit-tested.
+- [x] Screenshot pass on Archive/Stats/Privacy at 390 and 1280 (headless Chromium, mock build);
+      fixed a mock-only circular-import deadlock by extracting `ApiError` to `web/src/lib/errors.ts`.
+- [ ] Owner merges PR #9 → `deploy.yml` deploys to `https://wiki-golf.<subdomain>.workers.dev`.
+- [ ] Smoke test on phone + desktop; then set the real `HOLE_EPOCH` launch date.
+
 ## Open questions for the owner
 
 | Question                                        | Answer                                                                                      |

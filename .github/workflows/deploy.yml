@@ -36,6 +36,11 @@ jobs:
       - name: Deploy Worker
         working-directory: worker
         run: npx wrangler deploy --var ENVIRONMENT:production
-      # One-time owner setup (not done here): a strong production cookie secret, set with
-      #   cd worker && npx wrangler secret put COOKIE_SECRET
-      # Until then the Worker falls back to the insecure dev value in wrangler.jsonc.
+      # Push the real cookie secret to the Worker (overrides the dev default in wrangler.jsonc).
+      # The Worker refuses to serve in production until this is set, so this must run every deploy.
+      # printf avoids a trailing newline; secrets persist across deploys but we keep them in sync.
+      - name: Set production cookie secret
+        working-directory: worker
+        env:
+          COOKIE_SECRET: ${{ secrets.COOKIE_SECRET }}
+        run: printf '%s' "$COOKIE_SECRET" | npx wrangler secret put COOKIE_SECRET

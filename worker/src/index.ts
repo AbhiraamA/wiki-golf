@@ -15,6 +15,7 @@ import {
 } from './lib/rounds';
 import { loadMeta, pageByIdx, resolveTitle, type SnapshotMeta } from './lib/snapshot';
 import { allowRestoreAttempt, createBackupCode, restoreByCode } from './lib/backup';
+import { productionCookieSecretMissing } from './lib/guard';
 import { recordFinish, runScheduled } from './lib/stats';
 import type { Env } from './env';
 
@@ -55,6 +56,15 @@ async function ownedRound(c: Ctx): Promise<Round | Response> {
 }
 
 // ---- routes -----------------------------------------------------------------
+
+// Fail closed: in production, refuse every request until a real COOKIE_SECRET is set (never serve
+// with the public dev default, which would let anyone forge identity cookies).
+app.use('*', async (c, next) => {
+  if (productionCookieSecretMissing(c.env)) {
+    return c.text('Service unavailable: server is not fully configured.', 503);
+  }
+  await next();
+});
 
 // Security headers on every API (JSON) response.
 app.use('/api/*', async (c, next) => {
