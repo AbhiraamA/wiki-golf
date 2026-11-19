@@ -14,7 +14,7 @@ from pathlib import Path
 from . import dumps, export, net
 from .bfs import distances_to
 from .config import BLOCKLIST_PATH, wiki_settings
-from .enrich import make_describe, make_sensitivity, make_view_lookup
+from .enrich import make_describe, make_policy, make_view_lookup
 from .exclude import excluded_mask, load_blocklist
 from .graph import build_graph
 from .pick import History, Picker
@@ -110,6 +110,7 @@ def build(args: argparse.Namespace) -> int:
         log("Nothing to build.")
         return 0
 
+    today = dt.datetime.now(dt.UTC).date()
     session = net.make_session()
     if args.dumps_dir:
         source = dumps.LocalDumps(Path(args.dumps_dir), args.wiki, args.dump_date or "00000000")
@@ -130,13 +131,14 @@ def build(args: argparse.Namespace) -> int:
     online = not args.dumps_dir
     view_lookup = None
     if online and not args.no_pageviews:
-        view_lookup = make_view_lookup(session, dt.datetime.now(dt.UTC).date(), log=log)
-    # Sensitive-target filter: drops murderers/criminals, drugs, conspiracy theories, terrorism and
-    # sexual topics as destinations. Uses the local short description offline; also consults Wikidata
-    # (descriptions + instance-of/subclass-of/occupation) when online. The blocklist is the backstop.
+        view_lookup = make_view_lookup(session, today, log=log)
+    # Content policy for targets (CONTENT_GUIDE.md): drops murderers/criminals, drugs, conspiracy
+    # theories, terrorism, hate groups, sexual topics, modern politicians, disputed territories and
+    # recent deaths. Uses the local short description offline; also consults Wikidata when online.
+    # The blocklist and title patterns are the offline backstop (and cover starts).
     sensitive = None
     if not args.no_sensitive:
-        sensitive = make_sensitivity(g, session if online else None, settings.lang, log=log)
+        sensitive = make_policy(g, session if online else None, settings.lang, today).target_reason
     picker = Picker(
         g,
         excluded,
@@ -331,6 +333,77 @@ def show(args: argparse.Namespace) -> int:
     return 0
 
 
+def check(args: argparse.Namespace) -> int:
+    """Re-check holes in R2 against the content policy (CONTENT_GUIDE.md), for local review.
+
+    Resolves each start/target to its Wikidata item by title and applies the start/target policy;
+    prints PASS/FAIL per hole and a list of dates to re-roll. Read-only (no R2 writes). This is the
+    guide's final review step; run it on every batch before `approve`.
+    """
+    from . import enrich
+    from .sensitive import start_policy_reason, target_policy_reason
+
+    today = dt.datetime.now(dt.UTC).date()
+    want = list(dict.fromkeys(["en", wiki_settings(args.wiki).lang]))
+    session = net.make_session()
+    r2 = open_r2(args.via)
+    index = r2.get_json(index_key(args.wiki)) or {"holes": []}
+    dates = _select_dates(index, args.dates, args.through, args.status)
+    if not dates:
+        log(f"No matching holes in R2 for {args.wiki}.")
+        return 0
+
+    failing: list[str] = []
+    for date in sorted(dates):
+        rec = r2.get_json(hole_key(args.wiki, date))
+        if rec is None:
+            log(f"{date}: not found in R2")
+            continue
+        problems = []
+        for role, ep in (("start", rec["start"]), ("target", rec["target"])):
+            fields = enrich.fields_by_title(session, args.wiki, ep["title"], want)
+            if fields is None:
+                problems.append(
+                    f"{role} {ep['title'].replace('_', ' ')}: could not check (network)"
+                )
+                continue
+            desc = fields["desc"] or ep.get("shortDesc", "")
+            if role == "target":
+                reason = target_policy_reason(
+                    desc=desc,
+                    instance_classes=fields["classes"],
+                    occupations=fields["occupations"],
+                    positions_held=fields["positions"],
+                    convicted_of=fields["convicted"],
+                    death_iso=fields["death"],
+                    today=today,
+                )
+            else:
+                reason = start_policy_reason(
+                    desc=desc,
+                    instance_classes=fields["classes"],
+                    occupations=fields["occupations"],
+                    convicted_of=fields["convicted"],
+                    death_iso=fields["death"],
+                    today=today,
+                )
+            if reason:
+                problems.append(f"{role} {ep['title'].replace('_', ' ')}: {reason}")
+        if problems:
+            failing.append(date)
+            log(f"✗ {date} [{rec['status']}]")
+            for p in problems:
+                log(f"    {p}")
+        else:
+            log(f"✓ {date} [{rec['status']}]")
+    log("")
+    if failing:
+        log(f"{len(failing)} hole(s) fail the content policy: {' '.join(failing)}")
+    else:
+        log(f"All {len(dates)} checked hole(s) pass the content policy.")
+    return 1 if failing else 0
+
+
 def approve(args: argparse.Namespace) -> int:
     r2 = open_r2(args.via)
     index = r2.get_json(index_key(args.wiki)) or {"holes": []}
@@ -451,6 +524,14 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--through", help="Only holes up to this date")
     s.add_argument("--status", choices=["queued", "approved"], help="Only holes with this status")
     s.set_defaults(func=show)
+
+    ck = sub.add_parser("check", help="Re-check R2 holes against the content policy (review step)")
+    ck.add_argument("--wiki", default="simplewiki")
+    ck.add_argument("--via", choices=["wrangler", "keys"], default="wrangler", help="R2 access")
+    ck.add_argument("--dates", nargs="+", help="Specific dates; default is all in the index")
+    ck.add_argument("--through", help="Only holes up to this date")
+    ck.add_argument("--status", choices=["queued", "approved"], help="Only holes with this status")
+    ck.set_defaults(func=check)
 
     a = sub.add_parser("approve", help="Mark queued holes as approved in R2")
     a.add_argument("--wiki", default="simplewiki")

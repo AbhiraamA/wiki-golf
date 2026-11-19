@@ -23,7 +23,11 @@ import requests
 
 from . import net
 from .graph import SHORTDESC_MAX, Graph
-from .sensitive import CLAIM_PROPS, sensitive_by_description, sensitive_reason
+from .sensitive import (
+    sensitive_by_description,
+    start_policy_reason,
+    target_policy_reason,
+)
 
 PAGEVIEW_API = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article"
 PAGEVIEW_PROJECT = "en.wikipedia.org"
@@ -125,56 +129,146 @@ def make_describe(
     return describe
 
 
-def make_sensitivity(
-    g: Graph, session: requests.Session | None, lang: str, log=print
-) -> Callable[[int], str | None]:
-    """idx -> a reason string if the article is a sensitive *target* topic, else None.
+def _claim_ids(claims: dict, prop: str) -> list[str]:
+    return [
+        v["mainsnak"]["datavalue"]["value"]["id"]
+        for v in claims.get(prop, [])
+        if v.get("mainsnak", {}).get("datavalue", {}).get("value", {}).get("id")
+    ]
 
-    Combines three signals (see sensitive.py): the local short description, and - when online - the
-    Wikidata item's description and its instance-of/subclass-of/occupation claims. Degrades quietly
-    to the local-description check alone on any network trouble, so a build never fails here; the
-    blocklist is the backstop for topics neither Wikidata nor the description flags.
+
+def _claim_time(claims: dict, prop: str) -> str | None:
+    for v in claims.get(prop, []):
+        val = v.get("mainsnak", {}).get("datavalue", {}).get("value", {})
+        if isinstance(val, dict) and val.get("time"):
+            return str(val["time"])
+    return None
+
+
+def _extract_fields(ent: dict, want: list[str]) -> dict:
+    """The content-policy fields we read from a Wikidata entity (see Policy)."""
+    descs = ent.get("descriptions", {})
+    claims = ent.get("claims", {})
+    return {
+        "desc": next((str(descs[c].get("value", "")) for c in want if c in descs), ""),
+        "classes": _claim_ids(claims, "P31") + _claim_ids(claims, "P279"),
+        "occupations": _claim_ids(claims, "P106"),
+        "positions": _claim_ids(claims, "P39"),
+        "convicted": _claim_ids(claims, "P1399"),
+        "death": _claim_time(claims, "P570"),
+    }
+
+
+_EMPTY_FIELDS = {
+    "desc": "",
+    "classes": [],
+    "occupations": [],
+    "positions": [],
+    "convicted": [],
+    "death": None,
+}
+
+
+def fields_by_title(
+    session: requests.Session, site: str, title: str, want: list[str]
+) -> dict | None:
+    """Content-policy fields for a wiki article, fetched from Wikidata by site+title in one call.
+
+    Used by the review command to re-check existing holes in R2 without loading a dump. Returns
+    None on any network/parse trouble (caller treats that as "couldn't check").
     """
-    want = list(dict.fromkeys(["en", lang]))
-    throttle = _Throttle(MIN_INTERVAL)
-    cache: dict[str, str | None] = {}
-
-    def wikidata(qid: str) -> str | None:
-        if qid in cache:
-            return cache[qid]
-        params = (
-            f"?action=wbgetentities&ids={quote(qid)}&props=descriptions|claims"
-            f"&languages={'|'.join(want)}&format=json&formatversion=2"
-        )
-        reason: str | None = None
-        throttle.wait()
-        try:
-            ent = net.get(session, WIKIDATA_API + params).json().get("entities", {}).get(qid, {})
-            descs = ent.get("descriptions", {})
-            desc = next(
-                (str(descs[c].get("value", "")) for c in want if c in descs),
-                "",
-            )
-            claims = ent.get("claims", {})
-            qids = [
-                v["mainsnak"]["datavalue"]["value"]["id"]
-                for prop in CLAIM_PROPS
-                for v in claims.get(prop, [])
-                if v.get("mainsnak", {}).get("datavalue", {}).get("value", {}).get("id")
-            ]
-            reason = sensitive_reason(desc, qids)
-        except (requests.RequestException, RuntimeError, ValueError, KeyError, TypeError):
-            reason = None
-        cache[qid] = reason
-        return reason
-
-    def sensitivity(idx: int) -> str | None:
-        local = sensitive_by_description(g.shortdesc[idx])
-        if local:
-            return local
-        qid = g.qid[idx]
-        if qid and session is not None:
-            return wikidata(qid)
+    params = (
+        f"?action=wbgetentities&sites={quote(site)}&titles={quote(title.replace('_', ' '))}"
+        f"&props=descriptions|claims&languages={'|'.join(want)}&format=json&formatversion=2"
+    )
+    try:
+        entities = net.get(session, WIKIDATA_API + params).json().get("entities", {})
+        for qid, ent in entities.items():
+            if not qid.startswith("-"):  # "-1" means no item for this title
+                return _extract_fields(ent, want)
+        return dict(_EMPTY_FIELDS)
+    except (requests.RequestException, RuntimeError, ValueError, KeyError, TypeError):
         return None
 
-    return sensitivity
+
+class Policy:
+    """Content-guide checks for a hole endpoint (see sensitive.py and CONTENT_GUIDE.md).
+
+    `target_reason(idx)` / `start_reason(idx)` return a reason string if the article may not fill
+    that role, else None. Offline (no session) they use the local short description only; online
+    they also fetch the Wikidata item's description plus the claims the guide names - instance of /
+    subclass of / occupation (classes), position held and politician occupation (modern politics),
+    convicted-of P1399 (Tier A), and date of death P570 (recent-death and modern-politics cutoff).
+    Every fetch is cached per QID and degrades quietly to "allowed" on any network trouble.
+    """
+
+    def __init__(
+        self, g: Graph, session: requests.Session | None, lang: str, today: dt.date, log=print
+    ) -> None:
+        self.g = g
+        self.session = session
+        self.today = today
+        self.log = log
+        self.want = list(dict.fromkeys(["en", lang]))
+        self.throttle = _Throttle(MIN_INTERVAL)
+        self._cache: dict[str, dict] = {}  # qid -> extracted fields
+
+    def _fields(self, qid: str) -> dict:
+        if qid in self._cache:
+            return self._cache[qid]
+        params = (
+            f"?action=wbgetentities&ids={quote(qid)}&props=descriptions|claims"
+            f"&languages={'|'.join(self.want)}&format=json&formatversion=2"
+        )
+        self.throttle.wait()
+        fields = dict(_EMPTY_FIELDS)
+        try:
+            ent = (
+                net.get(self.session, WIKIDATA_API + params).json().get("entities", {}).get(qid, {})
+            )
+            fields = _extract_fields(ent, self.want)
+        except (requests.RequestException, RuntimeError, ValueError, KeyError, TypeError):
+            pass
+        self._cache[qid] = fields
+        return fields
+
+    def _reason(self, idx: int, target: bool) -> str | None:
+        # Local short description first (works offline).
+        local = sensitive_by_description(self.g.shortdesc[idx], target=target)
+        if local:
+            return local
+        qid = self.g.qid[idx]
+        if not qid or self.session is None:
+            return None
+        f = self._fields(qid)
+        if target:
+            return target_policy_reason(
+                desc=f["desc"],
+                instance_classes=f["classes"],
+                occupations=f["occupations"],
+                positions_held=f["positions"],
+                convicted_of=f["convicted"],
+                death_iso=f["death"],
+                today=self.today,
+            )
+        return start_policy_reason(
+            desc=f["desc"],
+            instance_classes=f["classes"],
+            occupations=f["occupations"],
+            convicted_of=f["convicted"],
+            death_iso=f["death"],
+            today=self.today,
+        )
+
+    def target_reason(self, idx: int) -> str | None:
+        return self._reason(idx, target=True)
+
+    def start_reason(self, idx: int) -> str | None:
+        return self._reason(idx, target=False)
+
+
+def make_policy(
+    g: Graph, session: requests.Session | None, lang: str, today: dt.date, log=print
+) -> Policy:
+    """Build a Policy for this graph (see Policy)."""
+    return Policy(g, session, lang, today, log=log)

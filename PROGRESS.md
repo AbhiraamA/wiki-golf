@@ -168,6 +168,43 @@ being chosen as targets; fame signals don't exclude them. Added a target-only se
 - Affected approved simplewiki holes to rebuild: **2026-11-29** (Methamphetamine), **2026-12-01**
   (Charles Manson), **2026-12-16** (Illuminati).
 
+## Content policy for endpoints (`builder/CONTENT_GUIDE.md`, 2026-11-19)
+
+The owner added `builder/CONTENT_GUIDE.md` (tiers A–D for what may be a start/target) as the content
+policy. Implemented the rules the builder didn't yet enforce, layered cheapest-first as the guide
+directs (blocklist → title patterns → Wikidata claims → short-description keywords → agent review).
+
+- **`sensitive.py`** generalised from the target-only sensitive filter into a role-aware policy:
+  - `target_policy_reason` and `start_policy_reason` take already-extracted Wikidata fields + the
+    short description, so the module stays pure/unit-tested.
+  - New rules: **convicted-of** (`P1399` any value → Tier A, both roles); **modern politician**
+    (occupation politician `Q82955` or any position held `P39`, and living or died ≥ 1950 → target
+    only — settled figures like Disraeli/Napoleon/Vespasian pass); **recent death** (`P570` within
+    **12 months** → both roles); **disputed/occupied territory & states with limited recognition**
+    (`Q15239622`/`Q2577883`/`Q10711424` → target only); **hate group** (`Q3233801`) and **genocide**
+    (`Q41397`) classes; expanded description keywords (massacre, genocide, mass shooting, hate/
+    extremism, suicide/self-harm). All QIDs verified against the live Wikidata API.
+  - Note: the guide says 90 days for recent deaths; the owner asked for **12 months**, so that is
+    what's enforced (`RECENT_DEATH_DAYS = 365`).
+- **`enrich.Policy` / `make_policy`**: one cached Wikidata fetch per item (descriptions + P31/P279/
+  P106/P39/P1399/P570), exposing `target_reason`/`start_reason`. `fields_by_title` fetches the same
+  by site+title (no dump needed) for the review command. Degrades quietly to "allowed" offline/on
+  network trouble (local short description still checked).
+- **`exclude.py`** title patterns added: `"X in Y"`/`"Topic of Place"` index pages and `(episode)`/
+  `(TV series)`/`(season)` single works. Fixed the `\b`-before-underscore gap in the work
+  disambiguator (same bug class as the old Olympics regex).
+- **`blocklist.txt`**: disputed-territories backstop section (Abkhazia, South Ossetia, Transnistria,
+  Northern Cyprus, Artsakh/Nagorno-Karabakh, Somaliland, Western Sahara).
+- **`cli.py check`**: re-checks R2 holes against the policy (start + target), prints PASS/FAIL with
+  reasons for local review, exits non-zero if any fail. This is the guide's final review step — run
+  on every batch before `approve`.
+- **Picker** now uses `make_policy(...).target_reason` as its target filter (was the narrower
+  sensitive check); starts rely on the offline blocklist/patterns (online per-start checks would be
+  too costly). Themed targets still skip the filter.
+- Re-checked all 30 approved simplewiki holes with `check`: 4 failed and were re-rolled and
+  re-approved — 2026-11-19 (Abkhazia), 2026-11-25 (Dilma Rousseff), 2026-12-01 (Che Guevara),
+  2026-12-14 (Tony Blair).
+
 ## Open questions for the owner
 
 | Question                                        | Answer                                                                                      |

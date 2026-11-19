@@ -155,6 +155,20 @@ Holocaust denial
 Protocols of the Elders of Zion
 
 
+# ── Disputed / partially recognised territories (not a target) ──────────────
+# Naming one as the day's destination takes a political side. Mostly caught automatically by the
+# Wikidata class (disputed territory / occupied territory / state with limited recognition); listed
+# here as a backstop for the best-known cases. Fine mid-route or as a start.
+Abkhazia
+South Ossetia
+Transnistria
+Northern Cyprus
+Republic of Artsakh
+Nagorno-Karabakh
+Somaliland
+Western Sahara
+
+
 # ── Divisive political figures ──────────────────────────────────────────────
 # Kept short and limited to figures widely regarded as controversial or as perpetrators of
 # large-scale harm. Review and adjust to your own judgement before launch.
