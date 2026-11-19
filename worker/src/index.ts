@@ -14,6 +14,7 @@ import {
   type Round,
 } from './lib/rounds';
 import { loadMeta, pageByIdx, resolveTitle, type SnapshotMeta } from './lib/snapshot';
+import { recordFinish, runScheduled } from './lib/stats';
 import type { Env } from './env';
 
 import type { Context } from 'hono';
@@ -137,6 +138,7 @@ app.post('/api/rounds/:id/shots', async (c) => {
     Date.now(),
   );
   if ('error' in out) return bad(c, out.error, 422);
+  if (out.done) await recordFinish(c.env, round.id, Date.now());
   const html = out.holed ? null : await getRevisionHtml(c.env, out.page.revId);
   return c.json({ ...out, html });
 });
@@ -170,6 +172,7 @@ app.post('/api/rounds/:id/caddie', async (c) => {
     Date.now(),
   );
   if ('error' in out) return bad(c, out.error, 422);
+  if (out.done) await recordFinish(c.env, round.id, Date.now());
   return c.json(out);
 });
 
@@ -216,4 +219,10 @@ app.onError((err, c) => {
   return c.json({ error: 'internal_error' }, 500);
 });
 
-export default app satisfies ExportedHandler<Env>;
+export default {
+  fetch: app.fetch,
+  // Cron-driven jobs: aggregate hole stats + rarity (hourly) and prune old rows (daily).
+  scheduled(event, env, ctx) {
+    ctx.waitUntil(runScheduled(event.cron, env, Date.now()));
+  },
+} satisfies ExportedHandler<Env>;

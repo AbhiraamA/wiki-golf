@@ -30,6 +30,13 @@
     },
   ],
 
+  // Scheduled jobs (worker/src/lib/stats.ts). The daily 03:41 UTC run (RETENTION_CRON) prunes
+  // 31-day-old rounds/shots and per-hole tallies; the 10-minute run recomputes hole_stats and
+  // rarity for dates with ranked finishers. runScheduled() dispatches on the cron string.
+  "triggers": {
+    "crons": ["*/10 * * * *", "41 3 * * *"],
+  },
+
   "vars": {
     "WIKI": "simplewiki",
     "ENVIRONMENT": "dev",
