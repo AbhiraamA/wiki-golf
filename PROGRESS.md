@@ -201,9 +201,15 @@ directs (blocklist → title patterns → Wikidata claims → short-description 
 - **Picker** now uses `make_policy(...).target_reason` as its target filter (was the narrower
   sensitive check); starts rely on the offline blocklist/patterns (online per-start checks would be
   too costly). Themed targets still skip the filter.
-- Re-checked all 30 approved simplewiki holes with `check`: 4 failed and were re-rolled and
-  re-approved — 2026-11-19 (Abkhazia), 2026-11-25 (Dilma Rousseff), 2026-12-01 (Che Guevara),
-  2026-12-14 (Tony Blair).
+- Re-checked all 30 approved simplewiki holes with `check` and re-rolled every failure (CI build on
+  the pinned `simplewiki-20261101` snapshot, then re-reviewed and re-approved). Over three rounds:
+  2026-11-19 Abkhazia→(Aisha, blocklisted)→**Great Britain**; 2026-11-25 Dilma Rousseff→**Siberia**;
+  2026-12-01 Che Guevara→**Sleeping Beauty (1959 film)**; 2026-12-14 Tony Blair→**Copyright**;
+  2026-12-18 Boxer Rebellion→**George Washington** (settled history, d. 1799, passes). Final state:
+  30/30 approved and passing `check`.
+- **Known gap / review reliance:** religious figures and "historical dictators" have no clean
+  Wikidata class, so they're caught by the blocklist + the `check`/`show` review step, not
+  automatically. Start-side enforcement is offline (blocklist + title patterns) only.
 
 ## Open questions for the owner
 
