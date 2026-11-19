@@ -3,6 +3,7 @@
   "repoUrl": "https://github.com/AbhiraamA/wiki-golf",
   "contactEmail": "wikigolf23@gmail.com",
   "holeEpoch": "2026-12-01",
+  "holeEpochPlaceholder": true,
   "wikis": {
     "simplewiki": { "lang": "simple", "shardCount": 64 },
     "enwiki": { "lang": "en", "shardCount": 1024 }

@@ -44,6 +44,27 @@ export function weekday(date: string): Weekday {
   return WEEKDAYS[new Date(parseDate(date)).getUTCDay()] as Weekday;
 }
 
+const MONTHS = [
+  'JAN',
+  'FEB',
+  'MAR',
+  'APR',
+  'MAY',
+  'JUN',
+  'JUL',
+  'AUG',
+  'SEP',
+  'OCT',
+  'NOV',
+  'DEC',
+] as const;
+
+/** Uppercase month + day, e.g. "NOV 19" — shown on the tee screen before launch. */
+export function monthDay(date: string): string {
+  const d = new Date(parseDate(date));
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
 /** Inclusive par range for a date, per the difficulty schedule. */
 export function parRange(date: string): readonly [min: number, max: number] {
   switch (new Date(parseDate(date)).getUTCDay()) {

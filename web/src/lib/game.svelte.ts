@@ -1,7 +1,15 @@
 /** Client game state and flow (Svelte 5 runes). The server is the source of truth; this tracks
 the current page, strokes and lie for rendering, and drives the screen transitions. */
 
-import { isLongHole, localDate, weekday, type HoleInfo, type Lie } from '@wiki-golf/shared';
+import {
+  HOLE_EPOCH_PLACEHOLDER,
+  isLongHole,
+  localDate,
+  monthDay,
+  weekday,
+  type HoleInfo,
+  type Lie,
+} from '@wiki-golf/shared';
 import { api, ApiError, type Me, type RoundResult } from './api';
 import { parseArticle } from './article/parse';
 import type { ArticleModel } from './article/types';
@@ -53,7 +61,10 @@ export class Game {
   get eyebrow(): string {
     if (!this.hole) return '';
     const day = weekday(this.hole.date).toUpperCase();
-    return `HOLE ${this.hole.holeNo} · ${day}${isLongHole(this.hole.date) ? ' LONG HOLE' : ''}`;
+    const long = isLongHole(this.hole.date) ? ' · LONG HOLE' : '';
+    // Before launch the hole number is meaningless, so show the weekday + date instead.
+    if (HOLE_EPOCH_PLACEHOLDER) return `${day} · ${monthDay(this.hole.date)}${long}`;
+    return `HOLE ${this.hole.holeNo} · ${day}${long}`;
   }
 
   async init(): Promise<void> {

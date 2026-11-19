@@ -18,6 +18,13 @@ export const USER_AGENT = `WikiGolf/${APP_VERSION} (${REPO_URL}; ${CONTACT_EMAIL
  */
 export const HOLE_EPOCH = config.holeEpoch;
 
+/**
+ * True until a real launch date is set. While true, the UI hides the (meaningless) hole number
+ * and shows the weekday + date instead. Flip to false in config.json at launch, together with a
+ * real HOLE_EPOCH.
+ */
+export const HOLE_EPOCH_PLACEHOLDER: boolean = config.holeEpochPlaceholder;
+
 /** Per-wiki settings: language subdomain and title index shard count. */
 export const WIKIS = config.wikis;
 
