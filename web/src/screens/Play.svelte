@@ -25,6 +25,7 @@
 </script>
 
 <section class="screen play" aria-label={`Playing hole ${game.hole?.holeNo}`}>
+  <div class="progress" class:on={game.busy} aria-hidden="true"></div>
   <CourseBar {game} />
 
   <div class="play-body">

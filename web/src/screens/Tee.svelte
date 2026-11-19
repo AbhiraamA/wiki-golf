@@ -13,6 +13,10 @@
   const streakText = $derived(
     streak > 0 ? `${streak}-day streak` : 'Finish today’s hole to start a streak',
   );
+
+  const title = (t: string) => t.replace(/_/g, ' ');
+  // The pixel display font is wide; long names overflow, so fall back to Atkinson for them.
+  const isLong = (t: string) => title(t).length > 16;
 </script>
 
 <section class="screen tee" aria-labelledby="tee-title">
@@ -72,19 +76,22 @@
     <div class="tee-info">
       <span class="eyebrow">{game.eyebrow}</span>
       <h1 class="route-title" id="tee-title">
-        {hole.start.title.replace(/_/g, ' ')}<br /><span class="to">to</span>
-        {hole.target.title.replace(/_/g, ' ')}
+        <span class="rt-name" class:long={isLong(hole.start.title)}>{title(hole.start.title)}</span>
+        <span class="to">to</span>
+        <span class="rt-name" class:long={isLong(hole.target.title)}
+          >{title(hole.target.title)}</span
+        >
       </h1>
       {#if hole.start.shortDesc || hole.target.shortDesc}
         <dl class="route-desc">
           {#if hole.start.shortDesc}
-            <div>
+            <div class="from">
               <dt>From</dt>
               <dd>{hole.start.shortDesc}</dd>
             </div>
           {/if}
           {#if hole.target.shortDesc}
-            <div>
+            <div class="to-row">
               <dt>To</dt>
               <dd>{hole.target.shortDesc}</dd>
             </div>
@@ -92,13 +99,12 @@
         </dl>
       {/if}
       <div class="par-row">
-        <span class="par-chip">PAR {hole.par}</span>
-        <span class="muted">Pick up at {hole.pickUp} strokes</span>
+        <span class="par-chip">PAR <span class="num">{hole.par}</span></span>
+        <span class="muted">Pick up at <span class="num">{hole.pickUp}</span> strokes</span>
       </div>
       {#if game.alreadyPlayed}
         <p class="played-note">
-          You finished today’s hole. Come back tomorrow for hole {hole.holeNo + 1}, or play a
-          practice round.
+          You finished today’s hole. Come back tomorrow for the next one, or play a practice round.
         </p>
       {/if}
     </div>
@@ -133,7 +139,6 @@
 <style>
   .tee {
     padding: 16px 24px 32px;
-    overflow-y: auto;
   }
   .topbar {
     display: flex;
@@ -196,7 +201,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    margin-top: 40px;
+    margin-top: 24px;
   }
   .eyebrow {
     font-size: 13px;
@@ -210,9 +215,26 @@
     font-size: clamp(30px, 8vw, 36px);
     font-weight: 600;
     line-height: 1.15;
-    text-wrap: balance;
+  }
+  .route-title .rt-name {
+    display: block;
+    /* Cap each name at two lines; long names end with an ellipsis rather than pushing TEE OFF down. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+  /* Long names are hard to read in the pixel font, so switch them to Atkinson. */
+  .route-title .rt-name.long {
+    font-family: var(--font-body);
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.2;
   }
   .route-title .to {
+    display: block;
     color: var(--mist);
   }
   .route-desc {
@@ -239,7 +261,16 @@
   }
   .route-desc dd {
     margin: 0;
-    color: var(--ink);
+  }
+  /* The start line is secondary. */
+  .route-desc .from dd {
+    color: var(--mist-light);
+  }
+  /* --paper at 75% over --night ≈ #bcbea6 → ~6.8:1 contrast (passes WCAG AA for normal text).
+     The old --ink here was near-black on the dark background — unreadable. */
+  .route-desc .to-row dd {
+    color: var(--paper);
+    opacity: 0.75;
   }
   .par-row {
     display: flex;
@@ -249,13 +280,25 @@
     flex-wrap: wrap;
   }
   .par-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
     padding: 6px 10px;
     background: var(--sand);
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
     line-height: 1;
+  }
+  /* Numbers render in Atkinson: the pixel font makes 5 look like S. */
+  .num {
+    font-family: var(--font-body);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+  .par-chip .num {
+    font-size: 19px;
   }
   .played-note {
     margin: 4px 0 0;
@@ -284,7 +327,7 @@
   @media (min-width: 1024px) {
     .tee {
       width: 100%;
-      max-width: 560px;
+      max-width: 600px;
       margin: 0 auto;
     }
   }

@@ -3,6 +3,7 @@
   <svg
     class="px"
     viewBox="0 0 90 57.6"
+    preserveAspectRatio="xMidYMid slice"
     role="img"
     aria-label="Pixel map of the hole: tee at bottom left, a long fairway past two bunkers, flag on the green at top right"
   >
@@ -60,11 +61,15 @@
 
 <style>
   .tee-art {
-    margin-top: 24px;
+    margin-top: 20px;
     box-shadow: var(--frame);
+    /* A short banner so TEE OFF stays above the fold at 1280×720 and 390×700. The pixel scene
+       (90×57.6) is cropped to this height with preserveAspectRatio="…slice". */
+    height: 180px;
+    overflow: hidden;
   }
   .tee-art svg {
     width: 100%;
-    height: auto;
+    height: 100%;
   }
 </style>

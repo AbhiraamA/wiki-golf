@@ -36,7 +36,10 @@
                   type="button"
                   class="wlink"
                   class:hint={node.l === game.hint}
+                  class:loading={game.pending === node.l}
                   disabled={game.busy}
+                  onpointerenter={() => game.prefetch(node.l)}
+                  onfocus={() => game.prefetch(node.l)}
                   onclick={() => play(node.l)}>{node.s}</button
                 >{/if}
             {/each}
@@ -63,7 +66,10 @@
                       type="button"
                       class="wlink"
                       class:hint={node.l === game.hint}
+                      class:loading={game.pending === node.l}
                       disabled={game.busy}
+                      onpointerenter={() => game.prefetch(node.l)}
+                      onfocus={() => game.prefetch(node.l)}
                       onclick={() => play(node.l)}>{node.s}</button
                     >{/if}
                 {/each}
@@ -86,7 +92,15 @@
         {#if open[id]}
           <div class="chips">
             {#each links as t (t)}
-              <button type="button" class="chip" disabled={game.busy} onclick={() => play(t)}>
+              <button
+                type="button"
+                class="chip"
+                class:loading={game.pending === t}
+                disabled={game.busy}
+                onpointerenter={() => game.prefetch(t)}
+                onfocus={() => game.prefetch(t)}
+                onclick={() => play(t)}
+              >
                 {titleToLabel(t)}
               </button>
             {/each}
