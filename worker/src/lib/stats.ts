@@ -153,6 +153,7 @@ export async function runRetention(env: Env, now: number): Promise<void> {
     env.DB.prepare('DELETE FROM rounds WHERE started_at < ?').bind(cutoffMs),
     env.DB.prepare('DELETE FROM page_visits WHERE hole_date < ?').bind(cutoffDate),
     env.DB.prepare('DELETE FROM hole_stats WHERE hole_date < ?').bind(cutoffDate),
+    env.DB.prepare('DELETE FROM rate_limits WHERE reset_at < ?').bind(now),
   ]);
 }
 
