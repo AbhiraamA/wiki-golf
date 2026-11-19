@@ -141,3 +141,15 @@ def test_recent_death_rule_twelve_months():
 def test_murderer_and_drug_block_both_roles():
     assert _start(occupations=["Q2159907"]) == "criminal"
     assert _start(desc="tropane alkaloid and stimulant drug") == "drug"
+
+
+def test_tier_b_classes_block_target_only():
+    # Historical conflict (Boxer Rebellion is P31 rebellion Q124734), weapon, religious text, disease.
+    assert _target(instance_classes=["Q124734"]) == "war or armed conflict"
+    assert _target(instance_classes=["Q198"]) == "war or armed conflict"
+    assert _target(instance_classes=["Q728"]) == "weapon"
+    assert _target(instance_classes=["Q179461"]) == "religious text"
+    assert _target(instance_classes=["Q12136"]) == "disease"
+    # All fine as a start.
+    for qid in ("Q124734", "Q728", "Q179461", "Q12136"):
+        assert _start(instance_classes=[qid]) is None

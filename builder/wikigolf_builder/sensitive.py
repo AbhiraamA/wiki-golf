@@ -47,15 +47,45 @@ SENSITIVE_QIDS: dict[str, str] = {
     "Q1260006": "drug cartel",
     "Q41397": "genocide",
     "Q3233801": "hate group",
-    # Target-only (Tier B/A "politics and conflict") - disputed / occupied territories and states
-    # with limited recognition make a loaded headline. Fine mid-route or as a start, not as a target.
+    # ── Target-only classes (Tier B: fine to begin on and read, wrong as the shared headline) ──
+    # Politics and conflict: disputed / occupied territories and states with limited recognition.
     "Q15239622": "disputed territory",
     "Q2577883": "occupied territory",
     "Q10711424": "state with limited recognition",
+    # Historical wars, battles and uprisings (settled history, but an odd thing to "reach").
+    "Q198": "war or armed conflict",
+    "Q350604": "war or armed conflict",
+    "Q178561": "war or armed conflict",
+    "Q124734": "war or armed conflict",
+    "Q8465": "war or armed conflict",
+    "Q188055": "war or armed conflict",
+    "Q831663": "war or armed conflict",
+    "Q1006311": "war or armed conflict",
+    # Weapons and military equipment; religious texts; diseases and medical conditions.
+    "Q728": "weapon",
+    "Q179461": "religious text",
+    "Q12136": "disease",
 }
 
-# Classes above that are only a problem for a *target* (a loaded destination), not a start.
-TARGET_ONLY_QIDS: frozenset[str] = frozenset({"Q15239622", "Q2577883", "Q10711424"})
+# Classes that are only a problem for a *target* (a loaded or odd destination), fine as a start.
+TARGET_ONLY_QIDS: frozenset[str] = frozenset(
+    {
+        "Q15239622",
+        "Q2577883",
+        "Q10711424",
+        "Q198",
+        "Q350604",
+        "Q178561",
+        "Q124734",
+        "Q8465",
+        "Q188055",
+        "Q831663",
+        "Q1006311",
+        "Q728",
+        "Q179461",
+        "Q12136",
+    }
+)
 
 # Wikidata claim properties whose values we test against SENSITIVE_QIDS.
 CLAIM_PROPS = ("P31", "P279", "P106")

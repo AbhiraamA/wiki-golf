@@ -155,6 +155,19 @@ Holocaust denial
 Protocols of the Elders of Zion
 
 
+# ── Religious figures (not a target; Tier B) ────────────────────────────────
+# Reaching a revered religious figure as the day's headline reads badly. These are hard to detect
+# automatically (Wikidata models them as ordinary people — e.g. Aisha's only occupation is "poet"),
+# so notable ones are listed here from review. Religious *texts* are caught by the Wikidata class.
+Aisha
+Muhammad
+Jesus
+Gautama Buddha
+Moses
+Abraham
+Virgin Mary
+
+
 # ── Disputed / partially recognised territories (not a target) ──────────────
 # Naming one as the day's destination takes a political side. Mostly caught automatically by the
 # Wikidata class (disputed territory / occupied territory / state with limited recognition); listed
