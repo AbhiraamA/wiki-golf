@@ -227,3 +227,25 @@ def test_pick_themed_target_pool_skips_missing(graph):
 
 def test_pick_themed_falls_back_when_target_absent(graph):
     assert picker(graph).pick_themed("2026-12-07", theme(["Nonexistent_page"])) is None
+
+
+def test_pick_skips_a_sensitive_target(graph):
+    # Whatever target a normal pick lands on, flagging it sensitive makes the picker choose another.
+    baseline = picker(graph, fetch=fake_fetch(graph)).pick("2026-12-07")
+    assert baseline is not None
+    banned = baseline.target
+    p = picker(graph, fetch=fake_fetch(graph))
+    p.sensitive = lambda i: "drug" if i == banned else None
+    hole = p.pick("2026-12-07")
+    assert hole is not None
+    assert hole.target != banned
+    assert p.sensitive_dropped >= 1
+
+
+def test_pick_themed_ignores_sensitivity(graph):
+    # A themed target is the owner's own choice, so the sensitive-topic filter must not drop it.
+    p = picker(graph, fetch=fake_fetch(graph))
+    p.sensitive = lambda i: "flagged"  # pretend everything is sensitive
+    hole = p.pick_themed("2026-12-07", theme(["Apollo 11"]))
+    assert hole is not None and hole.target == idx(graph, "Apollo_11")
+    assert p.sensitive_dropped == 0

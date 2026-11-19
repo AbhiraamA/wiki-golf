@@ -14,7 +14,7 @@ from pathlib import Path
 from . import dumps, export, net
 from .bfs import distances_to
 from .config import BLOCKLIST_PATH, wiki_settings
-from .enrich import make_describe, make_view_lookup
+from .enrich import make_describe, make_sensitivity, make_view_lookup
 from .exclude import excluded_mask, load_blocklist
 from .graph import build_graph
 from .pick import History, Picker
@@ -131,8 +131,21 @@ def build(args: argparse.Namespace) -> int:
     view_lookup = None
     if online and not args.no_pageviews:
         view_lookup = make_view_lookup(session, dt.datetime.now(dt.UTC).date(), log=log)
+    # Sensitive-target filter: drops murderers/criminals, drugs, conspiracy theories, terrorism and
+    # sexual topics as destinations. Uses the local short description offline; also consults Wikidata
+    # (descriptions + instance-of/subclass-of/occupation) when online. The blocklist is the backstop.
+    sensitive = None
+    if not args.no_sensitive:
+        sensitive = make_sensitivity(g, session if online else None, settings.lang, log=log)
     picker = Picker(
-        g, excluded, pick_settings, History.from_index(index["holes"]), fetch, view_lookup, log=log
+        g,
+        excluded,
+        pick_settings,
+        History.from_index(index["holes"]),
+        fetch,
+        view_lookup,
+        sensitive,
+        log=log,
     )
     log(picker.fame_summary())
 
@@ -180,6 +193,7 @@ def build(args: argparse.Namespace) -> int:
         holes=holes,
         missing=missing,
         removed=picker.removed_edges,
+        sensitive_dropped=picker.sensitive_dropped,
         verified=not args.no_verify,
         timings={
             **g.timings,
@@ -223,7 +237,9 @@ def upload_all(r2, out: Path, wiki: str, snap: str, snapshot_files, written) -> 
     return f"yes: {len(done)} holes, {r2.puts} objects written"
 
 
-def render_summary(g, holes, missing, removed, verified, timings, uploaded) -> str:
+def render_summary(
+    g, holes, missing, removed, verified, timings, uploaded, sensitive_dropped=0
+) -> str:
     # No titles or routes here: this goes to the public Actions job summary. Owners review the
     # start and target privately with `python -m wikigolf_builder show`.
     check = "passed" if verified else "skipped (--no-verify)"
@@ -235,6 +251,7 @@ def render_summary(g, holes, missing, removed, verified, timings, uploaded) -> s
         f"- Peak memory: {peak_memory_mb():,.0f} MB",
         f"- Uploaded to R2: {uploaded}",
         f"- Links dropped after HTML check: {len(removed)}",
+        f"- Sensitive targets skipped: {sensitive_dropped}",
         "",
         "Start, target and route are withheld from this public log. Review them with "
         "`python -m wikigolf_builder show --status queued` before approving.",
@@ -419,6 +436,9 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--no-verify", action="store_true", help="Skip the HTML route check (tests)")
     b.add_argument(
         "--no-pageviews", action="store_true", help="Skip the enwiki pageview floor for targets"
+    )
+    b.add_argument(
+        "--no-sensitive", action="store_true", help="Skip the sensitive-topic filter for targets"
     )
     b.add_argument("--pick", action="append", metavar="KEY=N", help="Override a pick setting")
     b.add_argument("--themes", help="Local themes.json (default: R2 themes.json on --upload)")

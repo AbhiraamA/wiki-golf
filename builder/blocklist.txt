@@ -46,6 +46,7 @@ Prostitution
 Sex trafficking
 Human trafficking
 Zoophilia
+Eroticism
 
 
 # ── Suicide and self-harm ───────────────────────────────────────────────────
@@ -68,6 +69,9 @@ Chernobyl disaster
 Fukushima nuclear disaster
 Hurricane Katrina
 Bhopal disaster
+# Recent fatal accidents caught in review (2026-11): these can't be captured by a static pattern,
+# so they are listed by title. Add new ones as review surfaces them.
+2025 HAL Tejas Dubai Air Show crash
 
 
 # ── Slurs ───────────────────────────────────────────────────────────────────
@@ -92,6 +96,63 @@ Islamic State
 Taliban
 Boko Haram
 Hamas
+
+
+# ── Murderers and criminals ─────────────────────────────────────────────────
+# Mostly caught automatically by the sensitive-topic filter (Wikidata occupation = criminal /
+# serial killer, or a "criminal"/"murderer" short description). Named here as a backstop for the
+# best-known cases and any whose Wikidata item is unhelpful.
+Charles Manson
+Ted Bundy
+Jeffrey Dahmer
+John Wayne Gacy
+Jack the Ripper
+Al Capone
+Pablo Escobar
+El Chapo
+Zodiac Killer
+Harold Shipman
+Ed Gein
+
+
+# ── Drugs (recreational / illegal) ──────────────────────────────────────────
+# IMPORTANT: hard drugs are listed by NAME here because Wikidata often models them unhelpfully —
+# e.g. "Methamphetamine" is only "group of stereoisomers" with no drug/psychoactive claim, so the
+# automatic filter cannot see it. Keep this list as the reliable catch.
+Methamphetamine
+Cocaine
+Crack cocaine
+Heroin
+Fentanyl
+Morphine
+Opium
+Cannabis (drug)
+Marijuana
+Hashish
+LSD
+MDMA
+Ecstasy (drug)
+Ketamine
+Methadone
+Amphetamine
+Crystal meth
+Psilocybin mushroom
+Mescaline
+Barbiturate
+Methaqualone
+Oxycodone
+
+
+# ── Conspiracy theories and secret societies ────────────────────────────────
+Illuminati
+New World Order (conspiracy theory)
+QAnon
+Pizzagate
+Flat Earth
+Chemtrail conspiracy theory
+9/11 conspiracy theories
+Holocaust denial
+Protocols of the Elders of Zion
 
 
 # ── Divisive political figures ──────────────────────────────────────────────

@@ -23,6 +23,7 @@ import requests
 
 from . import net
 from .graph import SHORTDESC_MAX, Graph
+from .sensitive import CLAIM_PROPS, sensitive_by_description, sensitive_reason
 
 PAGEVIEW_API = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article"
 PAGEVIEW_PROJECT = "en.wikipedia.org"
@@ -122,3 +123,58 @@ def make_describe(
         return ""
 
     return describe
+
+
+def make_sensitivity(
+    g: Graph, session: requests.Session | None, lang: str, log=print
+) -> Callable[[int], str | None]:
+    """idx -> a reason string if the article is a sensitive *target* topic, else None.
+
+    Combines three signals (see sensitive.py): the local short description, and - when online - the
+    Wikidata item's description and its instance-of/subclass-of/occupation claims. Degrades quietly
+    to the local-description check alone on any network trouble, so a build never fails here; the
+    blocklist is the backstop for topics neither Wikidata nor the description flags.
+    """
+    want = list(dict.fromkeys(["en", lang]))
+    throttle = _Throttle(MIN_INTERVAL)
+    cache: dict[str, str | None] = {}
+
+    def wikidata(qid: str) -> str | None:
+        if qid in cache:
+            return cache[qid]
+        params = (
+            f"?action=wbgetentities&ids={quote(qid)}&props=descriptions|claims"
+            f"&languages={'|'.join(want)}&format=json&formatversion=2"
+        )
+        reason: str | None = None
+        throttle.wait()
+        try:
+            ent = net.get(session, WIKIDATA_API + params).json().get("entities", {}).get(qid, {})
+            descs = ent.get("descriptions", {})
+            desc = next(
+                (str(descs[c].get("value", "")) for c in want if c in descs),
+                "",
+            )
+            claims = ent.get("claims", {})
+            qids = [
+                v["mainsnak"]["datavalue"]["value"]["id"]
+                for prop in CLAIM_PROPS
+                for v in claims.get(prop, [])
+                if v.get("mainsnak", {}).get("datavalue", {}).get("value", {}).get("id")
+            ]
+            reason = sensitive_reason(desc, qids)
+        except (requests.RequestException, RuntimeError, ValueError, KeyError, TypeError):
+            reason = None
+        cache[qid] = reason
+        return reason
+
+    def sensitivity(idx: int) -> str | None:
+        local = sensitive_by_description(g.shortdesc[idx])
+        if local:
+            return local
+        qid = g.qid[idx]
+        if qid and session is not None:
+            return wikidata(qid)
+        return None
+
+    return sensitivity

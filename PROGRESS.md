@@ -114,6 +114,60 @@ Owner decision after reviewing the first fame filter: inlinks are inflated by na
 - **Local review (2026-11-18, done by Claude via `wrangler login`, never in logs/commits):** of 30 rebuilt simplewiki targets, ~26 were clearly strong (countries, famous people, concepts, foods, landmarks) with good Wikidata descriptions. One dud — `ISO 4217` — had high fame signals (linked from every currency page) but is unrecognisable and unaimable, so added an **ISO-standard exclusion** (`^ISO(/IEC)?\d`), which generalises to ISO 3166/8601/639 etc. A second review of the next rebuild caught `Wikiquote` — a Wikimedia sister project, equally unrecognisable/self-referential — so also added a **Wikimedia-projects exclusion** (Wiktionary, Wikisource, Wikidata, MediaWiki, Wikimedia Foundation, and `Wikipedia` itself). Borderline-but-aimable targets (a head of state, a world religion, a historical state, cultural icons, famous athletes) were kept for variety. Kept the **30k enwiki views floor** — it gives a good famous/aimable ratio without starving the long par-6/7 holes. (Also fixed the Olympics exclusion regex: `\b` never matched before an underscore.)
 - All builder + web + worker tests, typecheck, lint and format pass.
 
+## Phase 4 — Scores, streaks and privacy (in progress)
+
+- [x] Migration `0002_finish_tracking.sql`: `rounds.recorded_at`, so a finished round is folded into
+      durable state exactly once.
+- [x] `worker/src/lib/stats.ts`:
+  - `recordFinish` — a conditional UPDATE claims the round (`recorded_at` was null); only the claimer
+    bumps `games_played`, advances the daily streak (ranked only) and increments the hole's per-page
+    finisher tallies. Replays and double-submits never double-count. Wired into `/shots` and
+    `/caddie` on finish.
+  - `aggregateHoleStats` — writes `hole_stats` (finisher count + score spread) per date; once a date
+    has ≥ `RARITY_MIN_FINISHERS` (100) finishers, sets each finisher's `rarity` = percentage who
+    scored that well or better.
+  - `runRetention` — deletes rounds/shots and per-hole tallies older than `RETENTION_DAYS` (31);
+    players are kept.
+  - `runScheduled(cron, …)` dispatches: the daily `41 3 * * *` run prunes, the 10-minute run
+    aggregates.
+- [x] Cron triggers in `wrangler.jsonc`: `["*/10 * * * *", "41 3 * * *"]`; `scheduled()` in
+      `index.ts` calls `runScheduled`.
+- [x] Tests (`worker/test/stats.test.ts`): record-once + streak advance/reset + practice-only
+      counting; rarity stays pending below 100 finishers then computes (done-when check); retention
+      deletes 31-day-old rows and keeps the player (done-when check).
+
+### Still to do in Phase 4
+
+- `POST /api/backup-code` and `POST /api/restore` (4-word code, SHA-256 hash, rate-limited).
+- Web screens: Archive, Stats (streaks + backup code UI), Privacy page.
+
+## Sensitive-topic target filter (2026-11-18)
+
+Owner decision: famous-but-unsavoury articles (Charles Manson, Methamphetamine, Illuminati) were
+being chosen as targets; fame signals don't exclude them. Added a target-only sensitive-topic filter
+(the destination is shown by name on the tee; a sensitive *mid-route* page is still fine).
+
+- **`sensitive.py`** (pure, offline-testable): a set of verified Wikidata QIDs for
+  `instance of` / `subclass of` / `occupation` (serial killer, murderer, criminal, rapist, war
+  criminal, cult leader, drug, psychoactive drug, conspiracy theory, secret society, terrorist
+  organisation, drug cartel) plus description-text patterns (murderer/criminal, drug, conspiracy/
+  secret society, terrorism, sexual topic). Patterns avoid common false positives ("stimulant drug"
+  not bare "stimulant"; "secret society" not "society").
+- **`enrich.make_sensitivity`**: local short description offline; when online also fetches the
+  Wikidata description + claims. Degrades quietly to "not sensitive" on any network trouble.
+- **`pick.Picker`**: checks sensitivity lazily for targets it actually tries (one Wikidata call per
+  attempted target, not per shortlisted one); themed targets are owner-chosen and skip the filter.
+  `--no-sensitive` disables it. The public job summary reports only an aggregate "Sensitive targets
+  skipped: N" — no titles.
+- **Blocklist backstop**: verified against live Wikidata that Manson (occupation=criminal) and the
+  Illuminati (P31=secret society) are caught automatically, but **Methamphetamine's** Wikidata item
+  is merely "group of stereoisomers" with no drug claim — so hard drugs are listed by name in
+  `blocklist.txt`, alongside well-known murderers, conspiracy theories and the three named examples.
+- Tested: `tests/test_sensitive.py` (the three examples' real data; false-positive guards) and two
+  `tests/test_pick.py` cases (a sensitive target is skipped; a themed target ignores the filter).
+- Affected approved simplewiki holes to rebuild: **2026-11-29** (Methamphetamine), **2026-12-01**
+  (Charles Manson), **2026-12-16** (Illuminati).
+
 ## Open questions for the owner
 
 | Question                                        | Answer                                                                                      |
