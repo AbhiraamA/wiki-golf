@@ -47,6 +47,7 @@ export class Game {
   shots = $state<{ lie: Lie; title: string }[]>([]);
   mulliganLeft = $state(true);
   hint = $state<string | null>(null);
+  pending = $state<string | null>(null); // link currently being played (for instant feedback)
   event = $state<TagKind | null>(null);
   lastLie = $state<Lie | null>(null);
   pageSeq = $state(0); // bumps on each new page, to re-key animations
@@ -57,6 +58,11 @@ export class Game {
   // toPin at each page we left, so a mulligan can restore it (the server never sends distances twice).
   #toPinStack: number[] = [];
   #tagTimer = 0;
+  // Titles we've already warmed on the server (via /api/page) so a click is a cache hit, not a
+  // cold Wikimedia fetch. Kept across pages within a round; reset when a new round starts.
+  // Not reactive: it's a private dedupe cache, never read from a template.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  #prefetched = new Set<string>();
 
   get eyebrow(): string {
     if (!this.hole) return '';
@@ -100,9 +106,11 @@ export class Game {
       this.shots = [];
       this.mulliganLeft = true;
       this.hint = null;
+      this.pending = null;
       this.lastLie = null;
       this.result = null;
       this.#toPinStack = [];
+      this.#prefetched.clear();
       this.pageSeq++;
       this.flash('start');
       this.screen = 'play';
@@ -121,9 +129,18 @@ export class Game {
     }, TAG_DELAY) as unknown as number;
   }
 
+  /** Warm the server-side cache for a link the player is hovering, so clicking it is a cache hit
+   * (no cold Wikimedia fetch). Fire-and-forget and deduped; safe to call on every hover. */
+  prefetch(title: string): void {
+    if (this.screen !== 'play' || this.busy || this.#prefetched.has(title)) return;
+    this.#prefetched.add(title);
+    void api.page(title, this.date).catch(() => this.#prefetched.delete(title));
+  }
+
   async playLink(title: string): Promise<void> {
     if (!this.roundId || this.busy || this.screen !== 'play') return;
     this.busy = true;
+    this.pending = title;
     this.hint = null;
     try {
       const out = await api.shot(this.roundId, {
@@ -150,6 +167,7 @@ export class Game {
       this.error = 'That move did not go through.';
     } finally {
       this.busy = false;
+      this.pending = null;
     }
   }
 

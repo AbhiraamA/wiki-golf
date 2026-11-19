@@ -60,7 +60,7 @@ svg.px {
 }
 
 #app {
-  height: 100%;
+  min-height: 100%;
   max-width: 560px;
   margin: 0 auto;
   display: flex;
@@ -211,8 +211,11 @@ svg.px {
   background-image: repeating-conic-gradient(var(--grass-dot) 0% 25%, transparent 0% 50%);
   background-size: 8px 8px;
   box-shadow: 0 4px 0 0 var(--shadow);
-  position: relative;
-  z-index: 1;
+  /* Sticky so the ball/par strip stays in view while the article scrolls natively (no inner
+     scroll container — the page uses the browser's own scrollbar). */
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 .course-meta {
   display: flex;
@@ -333,9 +336,6 @@ svg.px {
   flex-direction: column;
 }
 .card {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   margin: 20px 16px 0;
   padding: 20px;
   background: var(--paper);
@@ -387,6 +387,54 @@ svg.px {
   background: var(--gold);
   text-decoration-color: #a97c1c;
   padding: 0 2px;
+}
+/* Instant feedback: while a shot is in flight, the tapped link pulses and the rest dim, so the
+   click registers visibly even before the next page arrives. */
+.wlink.loading,
+.chip.loading {
+  background: var(--gold);
+  animation: pulse 900ms steps(2, start) infinite;
+}
+.wlink:disabled:not(.loading),
+.chip:disabled:not(.loading) {
+  opacity: 0.45;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Indeterminate top progress bar, shown while a request is in flight. */
+.progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 40;
+  overflow: hidden;
+  pointer-events: none;
+}
+.progress.on::after {
+  content: '';
+  display: block;
+  height: 100%;
+  width: 40%;
+  background: var(--flag);
+  animation: indet 1000ms linear infinite;
+}
+@keyframes indet {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(360%);
+  }
 }
 .fold {
   align-self: flex-start;
@@ -442,6 +490,11 @@ svg.px {
   display: flex;
   gap: 12px;
   padding: 16px 16px 24px;
+  /* Pinned to the bottom of the viewport so "Find a link" is always reachable as the page scrolls. */
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--night);
 }
 .find-btn {
   flex: 1;
@@ -818,7 +871,7 @@ svg.px {
   .play {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 320px;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
   }
   .course-head {
     grid-column: 1 / -1;
@@ -827,7 +880,6 @@ svg.px {
   .play-body {
     grid-column: 1;
     grid-row: 2;
-    min-height: 0;
   }
   .card {
     margin: 24px 20px 28px 4px;
@@ -845,8 +897,10 @@ svg.px {
     gap: 28px;
     grid-column: 2;
     grid-row: 2;
-    min-height: 0;
-    overflow-y: auto;
+    align-self: start;
+    /* Stays beside the article as the page scrolls natively; offset clears the sticky course bar. */
+    position: sticky;
+    top: 132px;
     padding: 24px 4px 28px 12px;
   }
   .phone-only {

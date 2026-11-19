@@ -139,7 +139,6 @@
 <style>
   .tee {
     padding: 16px 24px 32px;
-    overflow-y: auto;
   }
   .topbar {
     display: flex;

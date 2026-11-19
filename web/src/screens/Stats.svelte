@@ -126,7 +126,6 @@
 <style>
   .subpage {
     padding: 16px 24px 32px;
-    overflow-y: auto;
   }
   .subbody {
     display: flex;
