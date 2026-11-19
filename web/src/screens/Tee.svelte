@@ -6,6 +6,7 @@
   let { game }: { game: Game } = $props();
 
   let howOpen = $state(false);
+  let menuOpen = $state(false);
 
   const hole = $derived(game.hole);
   const streak = $derived(game.me?.streakCurrent ?? 0);
@@ -17,12 +18,45 @@
 <section class="screen tee" aria-labelledby="tee-title">
   <div class="topbar">
     <span class="wordmark">WIKI GOLF</span>
-    <button
-      class="icon-btn how-btn"
-      type="button"
-      aria-label="How to play"
-      onclick={() => (howOpen = true)}>?</button
-    >
+    <div class="topbar-actions">
+      <button
+        class="icon-btn how-btn"
+        type="button"
+        aria-label="How to play"
+        onclick={() => (howOpen = true)}>?</button
+      >
+      <div class="menu-wrap">
+        <button
+          class="icon-btn how-btn"
+          type="button"
+          aria-haspopup="true"
+          aria-expanded={menuOpen}
+          aria-label="Menu"
+          onclick={() => (menuOpen = !menuOpen)}>☰</button
+        >
+        {#if menuOpen}
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+          <div class="menu-backdrop" onclick={() => (menuOpen = false)}></div>
+          <ul class="menu" role="menu">
+            <li role="none">
+              <button role="menuitem" type="button" onclick={() => game.openView('archive')}>
+                Archive
+              </button>
+            </li>
+            <li role="none">
+              <button role="menuitem" type="button" onclick={() => game.openView('stats')}>
+                Stats
+              </button>
+            </li>
+            <li role="none">
+              <button role="menuitem" type="button" onclick={() => game.openView('privacy')}>
+                Privacy
+              </button>
+            </li>
+          </ul>
+        {/if}
+      </div>
+    </div>
   </div>
 
   <TeeArt />
@@ -117,6 +151,46 @@
     font-family: var(--font-display);
     font-size: 22px;
     font-weight: 700;
+  }
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .menu-wrap {
+    position: relative;
+  }
+  .menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+  }
+  .menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 6;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    min-width: 160px;
+    background: var(--night);
+    border: 2px solid var(--outline);
+    box-shadow: var(--frame);
+  }
+  .menu button {
+    width: 100%;
+    padding: 10px 12px;
+    border: 0;
+    background: transparent;
+    color: var(--paper);
+    font-size: 16px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+  }
+  .menu button:hover {
+    background: var(--grass);
   }
   .tee-info {
     display: flex;

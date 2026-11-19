@@ -55,6 +55,10 @@ export interface Me {
   lastDate: string | null;
 }
 
+export interface Restored extends Me {
+  restored: boolean;
+}
+
 export interface Api {
   hole(date: string): Promise<HoleInfo>;
   page(title: string, date: string): Promise<PageContent>;
@@ -67,6 +71,8 @@ export interface Api {
   caddie(roundId: string, linkTitles: string[]): Promise<CaddieOutcome>;
   result(roundId: string): Promise<RoundResult>;
   me(): Promise<Me>;
+  backupCode(): Promise<{ code: string }>;
+  restore(code: string): Promise<Restored>;
 }
 
 export class ApiError extends Error {
@@ -99,6 +105,8 @@ const liveApi: Api = {
   caddie: (id, linkTitles) => call('POST', `/rounds/${id}/caddie`, { linkTitles }),
   result: (id) => call('GET', `/rounds/${id}/result`),
   me: () => call('GET', '/me'),
+  backupCode: () => call('POST', '/backup-code', {}),
+  restore: (code) => call('POST', '/restore', { code }),
 };
 
 // Vite statically replaces import.meta.env.VITE_MOCK; the mock is tree-shaken out of prod builds.

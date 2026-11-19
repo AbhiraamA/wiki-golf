@@ -136,16 +136,40 @@ Owner decision after reviewing the first fame filter: inlinks are inflated by na
       counting; rarity stays pending below 100 finishers then computes (done-when check); retention
       deletes 31-day-old rows and keeps the player (done-when check).
 
-### Still to do in Phase 4
+### Backup codes (worker)
 
-- `POST /api/backup-code` and `POST /api/restore` (4-word code, SHA-256 hash, rate-limited).
-- Web screens: Archive, Stats (streaks + backup code UI), Privacy page.
+- [x] Migration `0003_rate_limits.sql`: a PII-free throttle table (bucket/count/reset_at), pruned by
+      the retention cron.
+- [x] `worker/src/lib/backup.ts`: `createBackupCode` issues a 4-word code (e.g. `maple-fox-orbit-9`)
+      and stores only its SHA-256 hash in `players.backup_hash`; `restoreByCode` matches a code's
+      hash to a player. A ~128-word list gives ~21M combinations.
+- [x] `POST /api/backup-code` (requires a player) and `POST /api/restore` (`{code}` → re-issues that
+      player's cookie). Restore is throttled by a global per-minute cap — no IP or other identifier
+      is stored, consistent with the privacy page; the code's entropy is the real lock.
+- [x] Tests (`worker/test/backup.test.ts`): round-trip restore to a fresh browser, bad/unknown
+      codes, the no-player case, and the throttle (asserts only bucket/count/reset_at are stored).
+
+### Web screens (Archive, Stats, Privacy)
+
+- [x] Lightweight view navigation added to `game.svelte.ts` (`view` state + `openView`/`closeView`)
+      and a menu in the Tee topbar; no router needed. Play/Holed still take over the screen.
+- [x] **Archive** (`screens/Archive.svelte`): lists past holes (HOLE_EPOCH..yesterday, fetched per
+      date, 404s skipped), shows the stored result if played, and plays any date as a practice round
+      (`game.playDate`). Empty until the first live day (today is before the placeholder epoch).
+- [x] **Stats** (`screens/Stats.svelte`): streak/best/games from `/api/me`; average vs par and
+      this-week list computed from local history; create-backup-code and restore UI.
+- [x] **Privacy** (`screens/Privacy.svelte`): the §8 table and plain-language statements (no IPs,
+      no trackers), contact email, app version.
+- [x] Date math moved to a plain `lib/dates.ts` (keeps `Date` out of the runes module per the
+      svelte lint). Mock backend extended with `backupCode`/`restore` so the dev/screenshot build
+      stays complete. Web typecheck, lint, tests and build pass (prod JS ~31 KB gzipped).
+- Not yet visually screenshotted at 390/1280 — verified by typecheck/lint/tests/build only.
 
 ## Sensitive-topic target filter (2026-11-18)
 
 Owner decision: famous-but-unsavoury articles (Charles Manson, Methamphetamine, Illuminati) were
 being chosen as targets; fame signals don't exclude them. Added a target-only sensitive-topic filter
-(the destination is shown by name on the tee; a sensitive *mid-route* page is still fine).
+(the destination is shown by name on the tee; a sensitive _mid-route_ page is still fine).
 
 - **`sensitive.py`** (pure, offline-testable): a set of verified Wikidata QIDs for
   `instance of` / `subclass of` / `occupation` (serial killer, murderer, criminal, rapist, war

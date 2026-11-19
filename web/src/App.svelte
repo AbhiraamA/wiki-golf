@@ -1,7 +1,10 @@
 <script lang="ts">
   import { Game } from './lib/game.svelte';
+  import Archive from './screens/Archive.svelte';
   import Holed from './screens/Holed.svelte';
   import Play from './screens/Play.svelte';
+  import Privacy from './screens/Privacy.svelte';
+  import Stats from './screens/Stats.svelte';
   import Tee from './screens/Tee.svelte';
 
   const game = new Game();
@@ -16,10 +19,16 @@
 </script>
 
 <main>
-  {#if game.screen === 'tee'}
-    <Tee {game} />
-  {:else if game.screen === 'play'}
+  {#if game.screen === 'play'}
     <Play {game} />
+  {:else if game.view === 'archive'}
+    <Archive {game} />
+  {:else if game.view === 'stats'}
+    <Stats {game} />
+  {:else if game.view === 'privacy'}
+    <Privacy {game} />
+  {:else}
+    <Tee {game} />
   {/if}
 </main>
 

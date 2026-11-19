@@ -42,6 +42,11 @@ export function savedResult(date: string): StoredResult | null {
   return read().results[date] ?? null;
 }
 
+/** All stored results, most recent date first. */
+export function allResults(): StoredResult[] {
+  return Object.values(read().results).sort((a, b) => b.date.localeCompare(a.date));
+}
+
 export function saveResult(r: StoredResult): void {
   const data = read();
   data.results[r.date] = r;
